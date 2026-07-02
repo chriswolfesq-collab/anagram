@@ -221,17 +221,71 @@ function enforceMaxWordLength(maxLen) {
 
 enforceMaxWordLength(MAX_WORD_LENGTH);
 
+// --- Word difficulty model ---
+// A word's difficulty is a blend of four signals, not just its length:
+//   1. Commonality (55%): frequency-derived score from the supplemental bank.
+//      Rearranging letters into a word you rarely see is much harder than
+//      into one you read every day.
+//   2. Length (20%): more tiles means a bigger search space.
+//   3. Letter structure (15%): repeated letters collapse the number of
+//      distinct arrangements, so BALLOON (7 letters, 5 distinct) plays easier
+//      than MYSTERY (7 distinct).
+//   4. Letter rarity (10%): words built from uncommon letters feel less
+//      familiar and offer fewer recognizable patterns to latch onto.
+
+const FREQ_DIFFICULTY = new Map(
+  (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
+    .map(entry => [entry.word, entry.difficulty])
+);
+
+const LETTER_RARITY = {
+  E: 1, A: 3, R: 5, I: 5, O: 6, T: 6, N: 7, S: 8, L: 10, C: 14,
+  U: 12, D: 13, P: 16, M: 15, H: 15, G: 19, B: 20, F: 20, Y: 22,
+  W: 24, K: 28, V: 33, X: 60, Z: 70, J: 65, Q: 75,
+};
+
+function clamp01to100(n) {
+  return Math.max(1, Math.min(100, Math.round(n)));
+}
+
+function computeWordDifficulty(word) {
+  // Commonality: real frequency data when we have it. The only words missing
+  // from the frequency bank are the hand-curated stage words, which were
+  // picked precisely because they're everyday-familiar — so the fallback
+  // treats them as fairly common, nudged up slightly by length.
+  const freq = FREQ_DIFFICULTY.has(word) ? FREQ_DIFFICULTY.get(word) : Math.min(60, 20 + (word.length - 5) * 4);
+
+  const lengthScore = Math.max(0, Math.min(100, (word.length - 5) * 20));
+
+  const distinct = new Set(word.split('')).size;
+  const distinctRatio = distinct / word.length; // 1.0 = all unique (hardest)
+  const structureScore = Math.max(0, Math.min(100, (distinctRatio - 0.5) * 200));
+
+  const avgRarity = word.split('').reduce((sum, ch) => sum + (LETTER_RARITY[ch] || 20), 0) / word.length;
+  const rarityScore = Math.max(0, Math.min(100, avgRarity * 2.2));
+
+  return clamp01to100(0.55 * freq + 0.2 * lengthScore + 0.15 * structureScore + 0.1 * rarityScore);
+}
+
+// Re-rank the curated stage words with the full difficulty model so the
+// 50-stage progression climbs by real difficulty, not just word length.
+(function sortStagesByDifficulty() {
+  const allLevels = STAGES.flatMap(s => s.levels);
+  allLevels.forEach(l => { l.difficulty = computeWordDifficulty(l.word); });
+  allLevels.sort((a, b) => a.difficulty - b.difficulty);
+  let i = 0;
+  STAGES.forEach(stage => {
+    stage.levels = stage.levels.map(() => allLevels[i++]);
+  });
+})();
+
 // Stages stay curated; Timed and Daily 5 draw from this larger bank so repeat
 // words are much less common.
-const STAGE_WORDS = STAGES.flatMap((s, stageIdx) => s.levels.map(l => [
-  l.word,
-  l.clue,
-  Math.max(1, Math.min(100, Math.round(((stageIdx + 1) / STAGES.length) * 100))),
-]));
+const STAGE_WORDS = STAGES.flatMap(s => s.levels.map(l => [l.word, l.clue, l.difficulty]));
 const STAGE_WORD_SET = new Set(STAGE_WORDS.map(([word]) => word));
 const SUPPLEMENTAL_WORD_PAIRS = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
   .filter(entry => entry.word.length <= MAX_WORD_LENGTH && !STAGE_WORD_SET.has(entry.word))
-  .map(entry => [entry.word, entry.clue, entry.difficulty]);
+  .map(entry => [entry.word, entry.clue, computeWordDifficulty(entry.word)]);
 const ALL_WORDS = STAGE_WORDS.concat(SUPPLEMENTAL_WORD_PAIRS);
 const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 65);
 const ARCADE_TIME = 30;
