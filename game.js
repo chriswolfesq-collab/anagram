@@ -2,6 +2,7 @@ const CONFIG = {
   accentColor: '#10B981',
   tileShape: 'square', // 'square' | 'circle'
 };
+const MAX_WORD_LENGTH = 10;
 
 // Word pools for the 44 generated stages that fill in between the 6
 // hand-authored anchor stages. Grouped by difficulty band so level count
@@ -198,9 +199,36 @@ const STAGES = [
   },
 ];
 
-// Full word bank for Timed Challenge mode: every word used across all 50
-// stages, drawn in a freshly shuffled order each run.
-const ALL_WORDS = STAGES.flatMap(s => s.levels.map(l => [l.word, l.clue]));
+function enforceMaxWordLength(maxLen) {
+  const used = new Set(STAGES.flatMap(s => s.levels.filter(l => l.word.length <= maxLen).map(l => l.word)));
+  const replacements = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
+    .filter(entry => entry.word.length >= 9 && entry.word.length <= maxLen && !used.has(entry.word));
+  let replacementIndex = 0;
+  STAGES.forEach((stage, stageIdx) => {
+    stage.levels = stage.levels.map(level => {
+      if (level.word.length <= maxLen) return level;
+      const replacement = replacements[replacementIndex++];
+      if (!replacement) return null;
+      used.add(replacement.word);
+      return {
+        word: replacement.word,
+        clue: replacement.clue,
+        time: Math.max(10, Math.min(level.time, levelTime(replacement.word, stageIdx))),
+      };
+    }).filter(Boolean);
+  });
+}
+
+enforceMaxWordLength(MAX_WORD_LENGTH);
+
+// Stages stay curated; Timed and Daily 5 draw from this larger bank so repeat
+// words are much less common.
+const STAGE_WORDS = STAGES.flatMap(s => s.levels.map(l => [l.word, l.clue]));
+const STAGE_WORD_SET = new Set(STAGE_WORDS.map(([word]) => word));
+const SUPPLEMENTAL_WORD_PAIRS = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
+  .filter(entry => entry.word.length <= MAX_WORD_LENGTH && !STAGE_WORD_SET.has(entry.word))
+  .map(entry => [entry.word, entry.clue]);
+const ALL_WORDS = STAGE_WORDS.concat(SUPPLEMENTAL_WORD_PAIRS);
 const ARCADE_TIME = 30;
 
 function shuffleArray(arr) {
@@ -210,6 +238,25 @@ function shuffleArray(arr) {
     const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
   }
   return out;
+}
+
+function buildArcadeQueue() {
+  const easy = shuffleArray(ALL_WORDS.filter(([word]) => word.length <= 6));
+  const medium = shuffleArray(ALL_WORDS.filter(([word]) => word.length >= 7 && word.length <= 8));
+  const hard = shuffleArray(ALL_WORDS.filter(([word]) => word.length >= 9));
+  const pools = { easy, medium, hard };
+  const pattern = ['easy', 'easy', 'medium', 'easy', 'medium', 'hard'];
+  const queue = [];
+  let i = 0;
+  while (pools.easy.length || pools.medium.length || pools.hard.length) {
+    const preferred = pattern[i % pattern.length];
+    const fallback = preferred === 'hard' ? ['medium', 'easy'] : preferred === 'medium' ? ['easy', 'hard'] : ['medium', 'hard'];
+    const key = [preferred, ...fallback].find(name => pools[name].length);
+    if (!key) break;
+    queue.push(pools[key].pop());
+    i++;
+  }
+  return queue;
 }
 
 // Pure helper shared by both modes: places a tapped tile into the next open
@@ -255,7 +302,7 @@ function formatCountdown(totalSeconds) {
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  if (hours > 0) return `${hours}h ${String(mins).padStart(2, '0')}m`;
+  if (hours > 0) return `${hours}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
   return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
@@ -277,13 +324,15 @@ function seededRandom(seed) {
 }
 
 function dailyWordsForDate(dateKey) {
-  const out = ALL_WORDS.slice();
   const random = seededRandom(seedFromString(dateKey));
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
-  }
-  return out.slice(0, DAILY_COUNT);
+  const bands = [
+    ALL_WORDS.filter(([word]) => word.length <= 6),
+    ALL_WORDS.filter(([word]) => word.length === 7),
+    ALL_WORDS.filter(([word]) => word.length === 8),
+    ALL_WORDS.filter(([word]) => word.length === 9),
+    ALL_WORDS.filter(([word]) => word.length === 10),
+  ];
+  return bands.map(band => band[Math.floor(random() * band.length)]);
 }
 
 function formatDuration(totalSeconds) {
@@ -468,14 +517,14 @@ class Game {
 
   startArcade() {
     if (this.arcadeTimerId) clearInterval(this.arcadeTimerId);
-    this.setState({ screen: 'arcadePlay', arcadeQueue: shuffleArray(ALL_WORDS), arcadeScore: 0, arcadeShareStatus: '' });
+    this.setState({ screen: 'arcadePlay', arcadeQueue: buildArcadeQueue(), arcadeScore: 0, arcadeShareStatus: '' });
     this.loadNextArcadeWord();
   }
 
   loadNextArcadeWord() {
     if (this.arcadeTimerId) clearInterval(this.arcadeTimerId);
     let queue = this.state.arcadeQueue;
-    if (queue.length === 0) queue = shuffleArray(ALL_WORDS);
+    if (queue.length === 0) queue = buildArcadeQueue();
     const [word, clue] = queue[0];
     this.setState({
       arcadeQueue: queue.slice(1),
