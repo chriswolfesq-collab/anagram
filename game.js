@@ -229,11 +229,56 @@ function applyTap(scrambled, slots, tileId) {
 
 const STORAGE_KEY = 'anagram_wordgame_progress_v2';
 const ARCADE_BEST_KEY = 'anagram_wordgame_arcade_best_v1';
+const DAILY_RESULT_KEY = 'anagram_wordgame_daily_result_v1';
+const DAILY_COUNT = 5;
+
+function todayKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function seedFromString(str) {
+  let seed = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    seed ^= str.charCodeAt(i);
+    seed = Math.imul(seed, 16777619);
+  }
+  return seed >>> 0;
+}
+
+function seededRandom(seed) {
+  let s = seed || 1;
+  return () => {
+    s = Math.imul(1664525, s) + 1013904223;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+function dailyWordsForDate(dateKey) {
+  const out = ALL_WORDS.slice();
+  const random = seededRandom(seedFromString(dateKey));
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+  }
+  return out.slice(0, DAILY_COUNT);
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds || 0));
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
 
 class Game {
   constructor(onChange) {
     this.onChange = onChange;
     this.arcadeTimerId = null;
+    this.dailyTimerId = null;
     this.state = {
       screen: 'home',
       stageProgress: STAGES.map(() => 0),
@@ -248,9 +293,19 @@ class Game {
       arcadeScore: 0,
       arcadeTimeLeft: ARCADE_TIME,
       arcadeBest: 0,
+      dailyDate: todayKey(),
+      dailyQueue: [],
+      dailyIndex: 0,
+      dailyWord: '',
+      dailyClue: '',
+      dailyStartedAt: 0,
+      dailyElapsed: 0,
+      dailyResult: null,
+      dailyShareStatus: '',
     };
     this.loadProgress();
     this.loadArcadeBest();
+    this.loadDailyResult();
   }
 
   setState(patch) {
@@ -288,6 +343,21 @@ class Game {
     } catch (e) {}
   }
 
+  loadDailyResult() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DAILY_RESULT_KEY) || 'null');
+      if (saved && saved.date && typeof saved.elapsed === 'number') {
+        this.state.dailyResult = saved;
+      }
+    } catch (e) {}
+  }
+
+  saveDailyResult(result) {
+    try {
+      localStorage.setItem(DAILY_RESULT_KEY, JSON.stringify(result));
+    } catch (e) {}
+  }
+
   isStageUnlocked(stageIdx, stageProgress) {
     if (stageIdx === 0) return true;
     return stageProgress[stageIdx - 1] >= STAGES[stageIdx - 1].levels.length;
@@ -311,6 +381,7 @@ class Game {
 
   goHome() {
     if (this.arcadeTimerId) clearInterval(this.arcadeTimerId);
+    if (this.dailyTimerId) clearInterval(this.dailyTimerId);
     this.setState({ screen: 'home' });
   }
 
@@ -384,6 +455,88 @@ class Game {
     this.setState({ screen: 'home' });
   }
 
+  // --- Daily 5 mode ---
+
+  startDaily() {
+    if (this.dailyTimerId) clearInterval(this.dailyTimerId);
+    const date = todayKey();
+    const queue = dailyWordsForDate(date);
+    const [word, clue] = queue[0];
+    const startedAt = Date.now();
+    this.setState({
+      screen: 'dailyPlay',
+      dailyDate: date,
+      dailyQueue: queue,
+      dailyIndex: 0,
+      dailyWord: word,
+      dailyClue: clue,
+      scrambled: this.shuffle(word),
+      slots: new Array(word.length).fill(null),
+      dailyStartedAt: startedAt,
+      dailyElapsed: 0,
+      dailyShareStatus: '',
+      status: 'playing',
+    });
+    this.dailyTimerId = setInterval(() => {
+      if (this.state.screen !== 'dailyPlay' || this.state.status !== 'playing') return;
+      this.setState({ dailyElapsed: Math.floor((Date.now() - this.state.dailyStartedAt) / 1000) });
+    }, 1000);
+  }
+
+  loadDailyWord(index) {
+    const [word, clue] = this.state.dailyQueue[index];
+    this.setState({
+      dailyIndex: index,
+      dailyWord: word,
+      dailyClue: clue,
+      scrambled: this.shuffle(word),
+      slots: new Array(word.length).fill(null),
+      status: 'playing',
+    });
+  }
+
+  resolveDailyTap(result) {
+    const { dailyWord, dailyIndex, dailyStartedAt } = this.state;
+    if (result.filled && result.word === dailyWord) {
+      this.setState({ scrambled: result.scrambled, slots: result.slots, status: 'success' });
+      if (dailyIndex + 1 >= DAILY_COUNT) {
+        const elapsed = Math.floor((Date.now() - dailyStartedAt) / 1000);
+        const dailyResult = { date: this.state.dailyDate, elapsed };
+        this.saveDailyResult(dailyResult);
+        if (this.dailyTimerId) clearInterval(this.dailyTimerId);
+        setTimeout(() => this.setState({ screen: 'dailyDone', dailyElapsed: elapsed, dailyResult }), 450);
+      } else {
+        setTimeout(() => this.loadDailyWord(dailyIndex + 1), 450);
+      }
+      return;
+    }
+    this.setState({ scrambled: result.scrambled, slots: result.slots });
+  }
+
+  exitDaily() {
+    if (this.dailyTimerId) clearInterval(this.dailyTimerId);
+    this.setState({ screen: 'home' });
+  }
+
+  async shareDaily() {
+    const result = this.state.dailyResult;
+    const elapsed = result ? result.elapsed : this.state.dailyElapsed;
+    const text = `Daily 5 ${this.state.dailyDate}: ${formatDuration(elapsed)} in Anagram`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ text });
+        this.setState({ dailyShareStatus: 'Shared!' });
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        this.setState({ dailyShareStatus: 'Copied!' });
+      } else {
+        this.setState({ dailyShareStatus: text });
+      }
+    } catch (e) {
+      this.setState({ dailyShareStatus: 'Share canceled' });
+    }
+  }
+
   tapScrambled(tileId) {
     const { status, scrambled, slots } = this.state;
     if (status !== 'playing') return;
@@ -391,6 +544,8 @@ class Game {
     if (!result) return;
     if (this.state.screen === 'arcadePlay') {
       this.resolveArcadeTap(result);
+    } else if (this.state.screen === 'dailyPlay') {
+      this.resolveDailyTap(result);
     } else {
       this.resolveStagesTap(result);
     }

@@ -45,10 +45,19 @@ function renderHome(state, game) {
     el('span', { className: 'home-choice-meta', text: `Longest streak ${state.arcadeBest}` }),
   ]);
 
+  const dailyResult = state.dailyResult && state.dailyResult.date === todayKey() ? state.dailyResult : null;
+  const dailyChoice = el('button', {
+    className: 'home-choice',
+    onClick: () => game.startDaily(),
+  }, [
+    el('span', { className: 'home-choice-title', text: 'Daily 5' }),
+    el('span', { className: 'home-choice-meta', text: dailyResult ? `Today ${formatDuration(dailyResult.elapsed)}` : "Today's 5 words" }),
+  ]);
+
   return el('div', { className: 'screen home-screen' }, [
     el('div', { className: 'home-inner' }, [
       el('div', { className: 'home-title', 'aria-label': 'ANAGRAM' }, titleTiles),
-      el('div', { className: 'home-actions' }, [stagesChoice, timedChoice]),
+      el('div', { className: 'home-actions' }, [stagesChoice, timedChoice, dailyChoice]),
     ]),
   ]);
 }
@@ -260,6 +269,57 @@ function renderArcadePlay(state, game) {
   return el('div', { className: 'screen', style: { position: 'relative' } }, [header, timerBar, body]);
 }
 
+function renderDailyPlay(state, game) {
+  const { scrambled, slots, status, dailyWord, dailyClue, dailyIndex, dailyElapsed } = state;
+  const { slotSize, slotFont, slotGap, tileRadius } = tileMetrics(dailyWord.length);
+  const solved = status === 'success';
+
+  const header = el('div', { className: 'play-header' }, [
+    el('div', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitDaily() }),
+    el('div', { className: 'play-level-label', text: `DAILY ${dailyIndex + 1} / ${DAILY_COUNT}` }),
+    el('div', { className: 'play-timer', text: formatDuration(dailyElapsed) }),
+  ]);
+
+  const progressPct = Math.round(((dailyIndex + (solved ? 1 : 0)) / DAILY_COUNT) * 100);
+  const progressBar = el('div', { className: 'timer-track' }, [
+    el('div', { className: 'timer-fill', style: { width: progressPct + '%', background: CONFIG.accentColor } }),
+  ]);
+
+  const slotsRow = el('div', { className: 'slots-row', style: { gap: slotGap + 'px' } },
+    slots.map((tileId, i) => {
+      const tile = tileId ? scrambled.find(t => t.id === tileId) : null;
+      return el('div', {
+        className: 'tile slot-tile' + (tile ? ' filled' : '') + (solved ? ' correct' : ''),
+        style: {
+          width: slotSize + 'px', height: slotSize + 'px', fontSize: slotFont + 'px', borderRadius: tileRadius,
+          ...(solved ? { background: CONFIG.accentColor, borderColor: CONFIG.accentColor } : {}),
+        },
+        text: tile ? tile.ch : '',
+        onClick: () => game.tapSlot(i),
+      });
+    })
+  );
+
+  const tilesRow = el('div', { className: 'tiles-row', style: { gap: slotGap + 'px' } },
+    scrambled.map(t => el('div', {
+      className: 'tile bank-tile' + (t.used ? ' used' : ''),
+      style: { width: slotSize + 'px', height: slotSize + 'px', fontSize: slotFont + 'px', borderRadius: tileRadius },
+      text: t.ch,
+      onClick: () => game.tapScrambled(t.id),
+    }))
+  );
+
+  const body = el('div', { className: 'play-body', onClick: () => window.focusMobileKeyboard && window.focusMobileKeyboard() }, [
+    el('div', { className: 'clue-label', text: 'CLUE' }),
+    el('div', { className: 'clue-text', text: dailyClue }),
+    slotsRow,
+    el('div', { className: 'hint-text', text: 'Solve all 5 as fast as you can' }),
+    tilesRow,
+  ]);
+
+  return el('div', { className: 'screen', style: { position: 'relative' } }, [header, progressBar, body]);
+}
+
 function renderArcadeOver(state, game) {
   const isNewBest = state.arcadeScore >= state.arcadeBest && state.arcadeScore > 0;
   return el('div', { className: 'center-screen' }, [
@@ -267,6 +327,19 @@ function renderArcadeOver(state, game) {
     el('div', { className: 'center-title-mono', text: String(state.arcadeScore) }),
     el('div', { className: 'center-desc', text: isNewBest ? 'New best score!' : `Best: ${state.arcadeBest}` }),
     el('button', { className: 'btn-primary inline', text: 'Play Again', style: { marginBottom: '12px' }, onClick: () => game.startArcade() }),
+    el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
+  ]);
+}
+
+function renderDailyDone(state, game) {
+  const elapsed = state.dailyResult ? state.dailyResult.elapsed : state.dailyElapsed;
+  return el('div', { className: 'center-screen' }, [
+    el('div', { className: 'center-icon', style: { background: CONFIG.accentColor }, text: '✓' }),
+    el('div', { className: 'center-eyebrow', text: 'DAILY 5 COMPLETE' }),
+    el('div', { className: 'center-title-mono', text: formatDuration(elapsed) }),
+    el('div', { className: 'center-desc', text: 'Share your time and come back tomorrow for a new set.' }),
+    el('button', { className: 'btn-primary inline', text: 'Share Time', style: { marginBottom: '12px' }, onClick: () => game.shareDaily() }),
+    state.dailyShareStatus ? el('div', { className: 'share-status', text: state.dailyShareStatus }) : null,
     el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
   ]);
 }
@@ -301,7 +374,9 @@ function render(state, game) {
     case 'levels': node = renderLevels(state, game); break;
     case 'play': node = renderPlay(state, game); break;
     case 'arcadePlay': node = renderArcadePlay(state, game); break;
+    case 'dailyPlay': node = renderDailyPlay(state, game); break;
     case 'arcadeOver': node = renderArcadeOver(state, game); break;
+    case 'dailyDone': node = renderDailyDone(state, game); break;
     case 'stageDone': node = renderStageDone(state, game); break;
     case 'done': node = renderDone(state, game); break;
   }

@@ -1,5 +1,5 @@
 const kbInput = document.getElementById('kb-capture');
-const PLAY_SCREENS = ['play', 'arcadePlay'];
+const PLAY_SCREENS = ['play', 'arcadePlay', 'dailyPlay'];
 
 const game = new Game(state => {
   render(state, game);
@@ -42,6 +42,9 @@ document.addEventListener('keydown', e => {
     } else if (game.state.screen === 'arcadeOver') {
       e.preventDefault();
       game.startArcade();
+    } else if (game.state.screen === 'dailyDone') {
+      e.preventDefault();
+      game.goHome();
     }
     return;
   }

@@ -726,6 +726,14 @@ input {
   line-height: 1.45;
 }
 
+.share-status {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  margin: -2px 0 18px;
+}
+
 .btn-primary.inline {
   padding: 16px 28px;
   width: auto;
