@@ -3,12 +3,21 @@ const PLAY_SCREENS = ['play', 'arcadePlay', 'dailyPlay'];
 
 const game = new Game(state => {
   render(state, game);
-  if (!PLAY_SCREENS.includes(state.screen)) kbInput.blur();
+  // Entering a play screen always happens as the direct result of a tap
+  // (choosing a level, hitting Play Again, etc.), so focusing here — still
+  // inside that same synchronous click/keydown handler — lets the browser
+  // treat it as user-initiated and pop the keyboard without a second tap.
+  if (PLAY_SCREENS.includes(state.screen)) {
+    kbInput.value = '';
+    kbInput.focus();
+  } else {
+    kbInput.blur();
+  }
 });
 render(game.state, game);
 
-// Tapping the play area focuses this hidden input, which is what actually
-// summons the on-screen keyboard on mobile (requires a real user gesture).
+// Fallback: if the keyboard gets dismissed mid-puzzle (e.g. the user taps
+// away), tapping the play area brings it back.
 window.focusMobileKeyboard = () => {
   if (PLAY_SCREENS.includes(game.state.screen)) {
     kbInput.value = '';
