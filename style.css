@@ -238,6 +238,14 @@ input {
   background: linear-gradient(90deg, var(--blue), var(--accent));
 }
 
+.home-choice.completed {
+  opacity: 0.76;
+}
+
+.home-choice.completed::before {
+  background: var(--accent);
+}
+
 .home-choice-title {
   font-size: 19px;
   font-weight: 800;
@@ -249,7 +257,8 @@ input {
   font-weight: 700;
   letter-spacing: 0.6px;
   color: var(--blue);
-  white-space: nowrap;
+  text-align: right;
+  line-height: 1.35;
 }
 
 .home-choice.primary .home-choice-meta {
@@ -724,6 +733,15 @@ input {
   max-width: 280px;
   font-weight: 600;
   line-height: 1.45;
+}
+
+.center-answer {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ink);
+  margin: 0 0 16px;
 }
 
 .share-status {

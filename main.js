@@ -48,7 +48,7 @@ document.addEventListener('keydown', e => {
     }
     return;
   }
-  if (game.state.screen !== 'play' && game.state.screen !== 'arcadePlay') return;
+  if (!PLAY_SCREENS.includes(game.state.screen)) return;
   if (e.key === 'Backspace') {
     e.preventDefault();
     game.backspace();

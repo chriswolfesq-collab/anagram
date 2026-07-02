@@ -240,6 +240,25 @@ function todayKey() {
   return `${y}-${m}-${d}`;
 }
 
+function msUntilNextMidnight() {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+  return Math.max(1000, next.getTime() - now.getTime());
+}
+
+function secondsUntilNextMidnight() {
+  return Math.ceil(msUntilNextMidnight() / 1000);
+}
+
+function formatCountdown(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds || 0));
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hours > 0) return `${hours}h ${String(mins).padStart(2, '0')}m`;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
 function seedFromString(str) {
   let seed = 2166136261;
   for (let i = 0; i < str.length; i++) {
@@ -279,11 +298,14 @@ class Game {
     this.onChange = onChange;
     this.arcadeTimerId = null;
     this.dailyTimerId = null;
+    this.dailyResetTimerId = null;
+    this.dailyCountdownTimerId = null;
     this.state = {
       screen: 'home',
       stageProgress: STAGES.map(() => 0),
       activeStage: 0,
       levelIndex: 0,
+      stageShareStatus: '',
       scrambled: [],
       slots: [],
       status: 'playing',
@@ -293,6 +315,7 @@ class Game {
       arcadeScore: 0,
       arcadeTimeLeft: ARCADE_TIME,
       arcadeBest: 0,
+      arcadeShareStatus: '',
       dailyDate: todayKey(),
       dailyQueue: [],
       dailyIndex: 0,
@@ -300,18 +323,50 @@ class Game {
       dailyClue: '',
       dailyStartedAt: 0,
       dailyElapsed: 0,
+      dailyResetIn: secondsUntilNextMidnight(),
       dailyResult: null,
       dailyShareStatus: '',
     };
     this.loadProgress();
     this.loadArcadeBest();
     this.loadDailyResult();
+    this.scheduleDailyReset();
+    this.startDailyCountdown();
   }
 
   setState(patch) {
     const next = typeof patch === 'function' ? patch(this.state) : patch;
     this.state = { ...this.state, ...next };
     this.onChange(this.state);
+  }
+
+  scheduleDailyReset() {
+    if (this.dailyResetTimerId) clearTimeout(this.dailyResetTimerId);
+    this.dailyResetTimerId = setTimeout(() => {
+      this.handleDailyReset();
+      this.scheduleDailyReset();
+    }, msUntilNextMidnight());
+  }
+
+  startDailyCountdown() {
+    if (this.dailyCountdownTimerId) clearInterval(this.dailyCountdownTimerId);
+    this.dailyCountdownTimerId = setInterval(() => {
+      this.setState({ dailyResetIn: secondsUntilNextMidnight() });
+    }, 1000);
+  }
+
+  handleDailyReset() {
+    const date = todayKey();
+    const patch = {
+      dailyDate: date,
+      dailyElapsed: 0,
+      dailyResetIn: secondsUntilNextMidnight(),
+      dailyShareStatus: '',
+    };
+    if (this.state.screen === 'dailyDone') {
+      patch.screen = 'home';
+    }
+    this.setState(patch);
   }
 
   loadProgress() {
@@ -413,7 +468,7 @@ class Game {
 
   startArcade() {
     if (this.arcadeTimerId) clearInterval(this.arcadeTimerId);
-    this.setState({ screen: 'arcadePlay', arcadeQueue: shuffleArray(ALL_WORDS), arcadeScore: 0 });
+    this.setState({ screen: 'arcadePlay', arcadeQueue: shuffleArray(ALL_WORDS), arcadeScore: 0, arcadeShareStatus: '' });
     this.loadNextArcadeWord();
   }
 
@@ -455,11 +510,55 @@ class Game {
     this.setState({ screen: 'home' });
   }
 
+  async shareArcade() {
+    const text = `Timed Challenge: I solved ${this.state.arcadeScore} ${this.state.arcadeScore === 1 ? 'word' : 'words'} in Anagram`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ text });
+        this.setState({ arcadeShareStatus: 'Shared!' });
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        this.setState({ arcadeShareStatus: 'Copied!' });
+      } else {
+        this.setState({ arcadeShareStatus: text });
+      }
+    } catch (e) {
+      this.setState({ arcadeShareStatus: 'Share canceled' });
+    }
+  }
+
+  async shareStage() {
+    const stage = STAGES[this.state.activeStage];
+    const text = `I cleared ${stage.name} in Anagram`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ text });
+        this.setState({ stageShareStatus: 'Shared!' });
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        this.setState({ stageShareStatus: 'Copied!' });
+      } else {
+        this.setState({ stageShareStatus: text });
+      }
+    } catch (e) {
+      this.setState({ stageShareStatus: 'Share canceled' });
+    }
+  }
+
   // --- Daily 5 mode ---
 
   startDaily() {
     if (this.dailyTimerId) clearInterval(this.dailyTimerId);
     const date = todayKey();
+    if (this.state.dailyResult && this.state.dailyResult.date === date) {
+      this.setState({
+        screen: 'dailyDone',
+        dailyDate: date,
+        dailyElapsed: this.state.dailyResult.elapsed,
+        dailyShareStatus: '',
+      });
+      return;
+    }
     const queue = dailyWordsForDate(date);
     const [word, clue] = queue[0];
     const startedAt = Date.now();
@@ -615,7 +714,7 @@ class Game {
     if (nextIdx < stage.levels.length) {
       this.startLevel(activeStage, nextIdx);
     } else if (activeStage + 1 < STAGES.length) {
-      this.setState({ screen: 'stageDone' });
+      this.setState({ screen: 'stageDone', stageShareStatus: '' });
     } else {
       this.setState({ screen: 'done' });
     }

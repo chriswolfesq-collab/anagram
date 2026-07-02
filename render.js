@@ -46,12 +46,14 @@ function renderHome(state, game) {
   ]);
 
   const dailyResult = state.dailyResult && state.dailyResult.date === todayKey() ? state.dailyResult : null;
+  const dailyResetText = `resets in ${formatCountdown(state.dailyResetIn)}`;
   const dailyChoice = el('button', {
-    className: 'home-choice',
-    onClick: () => game.startDaily(),
+    className: 'home-choice' + (dailyResult ? ' completed' : ''),
+    style: dailyResult ? { cursor: 'default' } : null,
+    onClick: dailyResult ? null : () => game.startDaily(),
   }, [
     el('span', { className: 'home-choice-title', text: 'Daily 5' }),
-    el('span', { className: 'home-choice-meta', text: dailyResult ? `Today ${formatDuration(dailyResult.elapsed)}` : "Today's 5 words" }),
+    el('span', { className: 'home-choice-meta', text: dailyResult ? `Completed ${formatDuration(dailyResult.elapsed)} · ${dailyResetText}` : dailyResetText }),
   ]);
 
   return el('div', { className: 'screen home-screen' }, [
@@ -325,7 +327,10 @@ function renderArcadeOver(state, game) {
   return el('div', { className: 'center-screen' }, [
     el('div', { className: 'center-eyebrow', text: "TIME'S UP" }),
     el('div', { className: 'center-title-mono', text: String(state.arcadeScore) }),
+    state.arcadeWord ? el('div', { className: 'center-answer', text: `Answer: ${state.arcadeWord}` }) : null,
     el('div', { className: 'center-desc', text: isNewBest ? 'New best score!' : `Best: ${state.arcadeBest}` }),
+    el('button', { className: 'btn-primary inline', text: 'Share Score', style: { marginBottom: '12px' }, onClick: () => game.shareArcade() }),
+    state.arcadeShareStatus ? el('div', { className: 'share-status', text: state.arcadeShareStatus }) : null,
     el('button', { className: 'btn-primary inline', text: 'Play Again', style: { marginBottom: '12px' }, onClick: () => game.startArcade() }),
     el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
   ]);
@@ -351,6 +356,8 @@ function renderStageDone(state, game) {
     el('div', { className: 'center-icon', style: { background: CONFIG.accentColor }, text: '✓' }),
     el('div', { className: 'center-eyebrow', text: 'STAGE COMPLETE' }),
     el('div', { className: 'center-title', text: stage.name }),
+    el('button', { className: 'btn-primary inline', text: 'Share Stage', style: { marginBottom: '12px' }, onClick: () => game.shareStage() }),
+    state.stageShareStatus ? el('div', { className: 'share-status', text: state.stageShareStatus }) : null,
     el('button', { className: 'btn-primary inline', text: isLastStage ? 'Back to Stages' : 'Next Stage', onClick: () => game.afterStageDone() }),
   ]);
 }
