@@ -64,6 +64,10 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (/^[a-zA-Z]$/.test(e.key)) {
+    // Prevent the browser from also inserting this character into the
+    // focused hidden input — otherwise its 'input' handler fires too and
+    // the same letter gets typed twice (e.g. "B" registering as "BB").
+    e.preventDefault();
     game.typeLetter(e.key.toUpperCase());
   }
 });

@@ -2,7 +2,24 @@ const CONFIG = {
   accentColor: '#10B981',
   tileShape: 'square', // 'square' | 'circle'
 };
-const MAX_WORD_LENGTH = 10;
+const MAX_WORD_LENGTH = 8;
+
+const PROPER_NOUN_CLUE_PATTERNS = [
+  /\b(?:United States|U\.S\.|American|English|British|French|German|Italian|Spanish|Russian|Chinese|Japanese|Indian|Irish|Scottish|Welsh|Dutch|Greek|Roman|Belgian|Canadian|Australian|African|European|Asian|Louisianian|Acadian|Cajun|Flemish)\b/i,
+  /\b(?:composer|filmmaker|writer|novelist|poet|artist|painter|sculptor|philosopher|statesman|president|emperor|king|queen|prince|princess|saint|biblical|mythology|mythological|deity|god|goddess)\b/i,
+  /\b(?:country|county|city|town|province|state|capital|island|river|mountain|language|dialect|religion|church|sect|tribe|empire|dynasty)\b/i,
+  /\b(?:genus|family|order|species)\s+[A-Z][a-z]+/,
+  /\([a-z]*\s*\d{3,4}(?:-\d{0,4})?\)/i,
+  /\b(?:Allah|Bible|England|Scotland|Wales|Ireland|France|Germany|Italy|Spain|Russia|China|Japan|India|Belgium|Canada|Australia|Africa|Europe|Asia|Mars|Venus|Jupiter|Saturn)\b/i,
+];
+
+function isAllowedWordEntry(entry, maxLen = MAX_WORD_LENGTH) {
+  if (!entry || typeof entry.word !== 'string' || typeof entry.clue !== 'string') return false;
+  if (entry.word.length > maxLen) return false;
+  if (!/^[A-Z]+$/.test(entry.word)) return false;
+  if (/\b[A-Z][a-z]{2,}\b/.test(entry.clue.replace(/^[A-Z][a-z]+\b/, ''))) return false;
+  return !PROPER_NOUN_CLUE_PATTERNS.some(pattern => pattern.test(entry.clue));
+}
 
 // Word pools for the 44 generated stages that fill in between the 6
 // hand-authored anchor stages. Grouped by difficulty band so level count
@@ -199,14 +216,14 @@ const STAGES = [
   },
 ];
 
-function enforceMaxWordLength(maxLen) {
-  const used = new Set(STAGES.flatMap(s => s.levels.filter(l => l.word.length <= maxLen).map(l => l.word)));
+function enforceWordRules(maxLen) {
+  const used = new Set(STAGES.flatMap(s => s.levels.filter(l => isAllowedWordEntry(l, maxLen)).map(l => l.word)));
   const replacements = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
-    .filter(entry => entry.word.length >= 9 && entry.word.length <= maxLen && !used.has(entry.word));
+    .filter(entry => isAllowedWordEntry(entry, maxLen) && !used.has(entry.word));
   let replacementIndex = 0;
   STAGES.forEach((stage, stageIdx) => {
     stage.levels = stage.levels.map(level => {
-      if (level.word.length <= maxLen) return level;
+      if (isAllowedWordEntry(level, maxLen)) return level;
       const replacement = replacements[replacementIndex++];
       if (!replacement) return null;
       used.add(replacement.word);
@@ -219,19 +236,20 @@ function enforceMaxWordLength(maxLen) {
   });
 }
 
-enforceMaxWordLength(MAX_WORD_LENGTH);
+enforceWordRules(MAX_WORD_LENGTH);
 
 // --- Word difficulty model ---
-// A word's difficulty is a blend of four signals, not just its length:
-//   1. Commonality (55%): frequency-derived score from the supplemental bank.
+// A word's difficulty is a blend of five signals, not just its length:
+//   1. Commonality (40%): frequency-derived score from the supplemental bank.
 //      Rearranging letters into a word you rarely see is much harder than
 //      into one you read every day.
-//   2. Length (20%): more tiles means a bigger search space.
-//   3. Letter structure (15%): repeated letters collapse the number of
-//      distinct arrangements, so BALLOON (7 letters, 5 distinct) plays easier
-//      than MYSTERY (7 distinct).
-//   4. Letter rarity (10%): words built from uncommon letters feel less
-//      familiar and offer fewer recognizable patterns to latch onto.
+//   2. Anagram density (20%): more distinct permutations means a larger
+//      search space; repeated letters make that space smaller.
+//   3. Pattern familiarity (15%): common chunks, prefixes, and suffixes give
+//      players handles to grab onto.
+//   4. Letter rarity (15%): words built from uncommon letters feel less
+//      familiar and offer fewer recognizable patterns.
+//   5. Length (10%): more tiles still matters, but it is not the whole model.
 
 const FREQ_DIFFICULTY = new Map(
   (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
@@ -244,8 +262,65 @@ const LETTER_RARITY = {
   W: 24, K: 28, V: 33, X: 60, Z: 70, J: 65, Q: 75,
 };
 
+const COMMON_CHUNKS = [
+  'ING', 'TION', 'SION', 'MENT', 'NESS', 'LESS', 'ABLE', 'IBLE', 'ALLY',
+  'ER', 'OR', 'ED', 'LY', 'AR', 'AL', 'EN', 'EL', 'LE', 'ST', 'TH', 'SH',
+  'CH', 'PH', 'WH', 'QU', 'CK', 'OO', 'EE', 'EA', 'AI', 'OA', 'OU', 'IE',
+  'IGH', 'IGHT', 'OUND', 'OUGH', 'ANT', 'ENT', 'IVE', 'OUS', 'FUL',
+];
+
+const COMMON_PREFIXES = [
+  'RE', 'UN', 'IN', 'IM', 'DIS', 'MIS', 'PRE', 'PRO', 'CON', 'COM', 'TRANS',
+];
+
+const COMMON_SUFFIXES = [
+  'ING', 'ED', 'ER', 'EST', 'LY', 'TION', 'SION', 'MENT', 'NESS', 'LESS',
+  'ABLE', 'IBLE', 'FUL', 'OUS', 'IVE', 'AL',
+];
+
+const LOG_FACTORIAL = [0];
+for (let i = 1; i <= MAX_WORD_LENGTH; i++) {
+  LOG_FACTORIAL[i] = LOG_FACTORIAL[i - 1] + Math.log(i);
+}
+
 function clamp01to100(n) {
   return Math.max(1, Math.min(100, Math.round(n)));
+}
+
+function clampScore(n) {
+  return Math.max(0, Math.min(100, n));
+}
+
+function anagramDensityScore(word) {
+  const counts = {};
+  for (const ch of word) counts[ch] = (counts[ch] || 0) + 1;
+
+  let logPermutations = LOG_FACTORIAL[word.length] || 0;
+  Object.values(counts).forEach(count => {
+    logPermutations -= LOG_FACTORIAL[count] || 0;
+  });
+
+  const maxLogPermutations = LOG_FACTORIAL[MAX_WORD_LENGTH] || 1;
+  return clampScore((logPermutations / maxLogPermutations) * 100);
+}
+
+function patternFamiliarityDifficulty(word) {
+  const covered = new Array(word.length).fill(false);
+
+  COMMON_CHUNKS.forEach(chunk => {
+    let index = word.indexOf(chunk);
+    while (index !== -1) {
+      for (let i = index; i < index + chunk.length; i++) covered[i] = true;
+      index = word.indexOf(chunk, index + 1);
+    }
+  });
+
+  const coverage = covered.filter(Boolean).length / word.length;
+  const prefixBonus = COMMON_PREFIXES.some(prefix => word.startsWith(prefix)) ? 0.15 : 0;
+  const suffixBonus = COMMON_SUFFIXES.some(suffix => word.endsWith(suffix)) ? 0.15 : 0;
+  const familiarity = clampScore((coverage + prefixBonus + suffixBonus) * 100);
+
+  return 100 - familiarity;
 }
 
 function computeWordDifficulty(word) {
@@ -255,16 +330,20 @@ function computeWordDifficulty(word) {
   // treats them as fairly common, nudged up slightly by length.
   const freq = FREQ_DIFFICULTY.has(word) ? FREQ_DIFFICULTY.get(word) : Math.min(60, 20 + (word.length - 5) * 4);
 
-  const lengthScore = Math.max(0, Math.min(100, (word.length - 5) * 20));
-
-  const distinct = new Set(word.split('')).size;
-  const distinctRatio = distinct / word.length; // 1.0 = all unique (hardest)
-  const structureScore = Math.max(0, Math.min(100, (distinctRatio - 0.5) * 200));
+  const lengthScore = clampScore((word.length - 5) * 20);
+  const densityScore = anagramDensityScore(word);
+  const patternScore = patternFamiliarityDifficulty(word);
 
   const avgRarity = word.split('').reduce((sum, ch) => sum + (LETTER_RARITY[ch] || 20), 0) / word.length;
-  const rarityScore = Math.max(0, Math.min(100, avgRarity * 2.2));
+  const rarityScore = clampScore(avgRarity * 2.2);
 
-  return clamp01to100(0.55 * freq + 0.2 * lengthScore + 0.15 * structureScore + 0.1 * rarityScore);
+  return clamp01to100(
+    0.4 * freq +
+    0.2 * densityScore +
+    0.15 * patternScore +
+    0.15 * rarityScore +
+    0.1 * lengthScore
+  );
 }
 
 // Re-rank the curated stage words with the full difficulty model so the
@@ -284,7 +363,7 @@ function computeWordDifficulty(word) {
 const STAGE_WORDS = STAGES.flatMap(s => s.levels.map(l => [l.word, l.clue, l.difficulty]));
 const STAGE_WORD_SET = new Set(STAGE_WORDS.map(([word]) => word));
 const SUPPLEMENTAL_WORD_PAIRS = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
-  .filter(entry => entry.word.length <= MAX_WORD_LENGTH && !STAGE_WORD_SET.has(entry.word))
+  .filter(entry => isAllowedWordEntry(entry) && !STAGE_WORD_SET.has(entry.word))
   .map(entry => [entry.word, entry.clue, computeWordDifficulty(entry.word)]);
 const ALL_WORDS = STAGE_WORDS.concat(SUPPLEMENTAL_WORD_PAIRS);
 const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 65);
