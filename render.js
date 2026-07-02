@@ -3,51 +3,53 @@ function el(tag, opts = {}, children = []) {
   if (opts.className) node.className = opts.className;
   if (opts.text !== undefined) node.textContent = opts.text;
   if (opts.html !== undefined) node.innerHTML = opts.html;
+  if (opts['aria-label']) node.setAttribute('aria-label', opts['aria-label']);
   if (opts.style) Object.assign(node.style, opts.style);
   if (opts.onClick) node.addEventListener('click', opts.onClick);
   children.forEach(c => c && node.appendChild(c));
   return node;
 }
 
+// Sizes tiles so the whole word always fits on a single line, however long
+// it is or however narrow the viewport is.
 function tileMetrics(wordLen) {
-  return {
-    slotSize: wordLen <= 5 ? 48 : wordLen <= 7 ? 42 : 34,
-    slotFont: wordLen <= 5 ? 22 : wordLen <= 7 ? 19 : 15,
-    slotGap: wordLen <= 7 ? 8 : 6,
-    tileRadius: CONFIG.tileShape === 'circle' ? '50%' : '4px',
-  };
+  const containerWidth = Math.min(window.innerWidth, 430) - 48; // #app width minus play-body padding
+  const gap = wordLen <= 6 ? 8 : wordLen <= 9 ? 6 : wordLen <= 12 ? 4 : 3;
+  const rawSize = Math.floor((containerWidth - gap * (wordLen - 1)) / wordLen);
+  const slotSize = Math.max(20, Math.min(48, rawSize));
+  const slotFont = Math.max(11, Math.round(slotSize * 0.46));
+  const tileRadius = CONFIG.tileShape === 'circle' ? '50%' : '8px';
+  return { slotSize, slotFont, slotGap: gap, tileRadius };
 }
 
 function renderHome(state, game) {
-  const totalLevels = STAGES.reduce((sum, s) => sum + s.levels.length, 0);
-  const totalSolved = state.stageProgress.reduce((sum, n) => sum + n, 0);
+  const completedStages = state.stageProgress.filter((n, i) => n >= STAGES[i].levels.length).length;
+  const titleTiles = 'ANAGRAM'.split('').map(ch => el('div', {
+    className: 'home-title-tile',
+    text: ch,
+  }));
 
-  const stagesCard = el('div', {
-    className: 'mode-card',
-    style: { cursor: 'pointer' },
+  const stagesChoice = el('button', {
+    className: 'home-choice primary',
     onClick: () => game.goToStages(),
   }, [
-    el('div', { className: 'mode-card-title', text: 'Stages' }),
-    el('div', { className: 'mode-card-desc', text: 'No timer. Clear all 50 stages at your own pace, from easy to expert.' }),
-    el('div', { className: 'mode-card-meta', text: `${totalSolved} of ${totalLevels} words solved` }),
+    el('span', { className: 'home-choice-title', text: 'Stages' }),
+    el('span', { className: 'home-choice-meta', text: `${completedStages} / ${STAGES.length} stages passed` }),
   ]);
 
-  const arcadeCard = el('div', {
-    className: 'mode-card',
-    style: { cursor: 'pointer' },
+  const timedChoice = el('button', {
+    className: 'home-choice',
     onClick: () => game.startArcade(),
   }, [
-    el('div', { className: 'mode-card-title', text: 'Timed Challenge' }),
-    el('div', { className: 'mode-card-desc', text: `30 seconds per word. New random words and order every run — see how many you can solve.` }),
-    el('div', { className: 'mode-card-meta', text: state.arcadeBest > 0 ? `Best: ${state.arcadeBest}` : 'No runs yet' }),
+    el('span', { className: 'home-choice-title', text: 'Timed' }),
+    el('span', { className: 'home-choice-meta', text: `Longest streak ${state.arcadeBest}` }),
   ]);
 
-  return el('div', { className: 'screen' }, [
-    el('div', { className: 'screen-header' }, [
-      el('div', { className: 'app-title', text: 'ANAGRAM' }),
-      el('div', { className: 'app-subtitle', text: 'Choose a mode' }),
+  return el('div', { className: 'screen home-screen' }, [
+    el('div', { className: 'home-inner' }, [
+      el('div', { className: 'home-title', 'aria-label': 'ANAGRAM' }, titleTiles),
+      el('div', { className: 'home-actions' }, [stagesChoice, timedChoice]),
     ]),
-    el('div', { className: 'stage-list' }, [stagesCard, arcadeCard]),
   ]);
 }
 
@@ -64,20 +66,20 @@ function renderStages(state, game) {
     const card = el('div', {
       className: 'stage-card',
       style: {
-        borderColor: completed ? CONFIG.accentColor : unlocked ? '#141414' : '#E2E2DA',
-        background: unlocked ? '#FFFFFF' : '#F2F2ED',
+        borderColor: completed ? 'rgba(16, 185, 129, 0.35)' : unlocked ? 'rgba(255,255,255,0.72)' : 'rgba(148, 163, 184, 0.24)',
+        background: unlocked ? 'rgba(255,255,255,0.9)' : 'rgba(241,245,249,0.68)',
         opacity: unlocked ? 1 : 0.65,
         cursor: unlocked ? 'pointer' : 'default',
       },
       onClick: unlocked ? () => game.openStage(i) : null,
     }, [
       el('div', { className: 'stage-card-top' }, [
-        el('div', { className: 'stage-card-label', style: { color: unlocked ? '#8A8A85' : '#C7C7BE' }, text: 'STAGE ' + (i + 1) }),
-        el('div', { className: 'stage-card-right', style: { color: completed ? CONFIG.accentColor : unlocked ? '#141414' : '#C7C7BE' }, text: completed ? 'DONE' : unlocked ? 'PLAY' : 'LOCKED' }),
+        el('div', { className: 'stage-card-label', style: { color: unlocked ? '#697586' : '#94A3B8' }, text: 'STAGE ' + (i + 1) }),
+        el('div', { className: 'stage-card-right', style: { color: completed ? '#047857' : unlocked ? '#4F46E5' : '#94A3B8' }, text: completed ? 'DONE' : unlocked ? 'PLAY' : 'LOCKED' }),
       ]),
-      el('div', { className: 'stage-card-name', style: { color: unlocked ? '#141414' : '#B8B8AF' }, text: s.name }),
+      el('div', { className: 'stage-card-name', style: { color: unlocked ? '#16202A' : '#94A3B8' }, text: s.name }),
       el('div', { className: 'progress-track' }, [
-        el('div', { className: 'progress-fill', style: { width: pct + '%', background: completed ? CONFIG.accentColor : '#141414' } }),
+        el('div', { className: 'progress-fill', style: { width: pct + '%', background: completed ? CONFIG.accentColor : 'linear-gradient(90deg, #4F46E5, #10B981)' } }),
       ]),
       el('div', { className: 'stage-card-progress', text: unlocked ? `${stageProgress[i]} / ${s.levels.length} levels solved` : 'Complete the previous stage' }),
     ]);
@@ -114,19 +116,19 @@ function renderLevels(state, game) {
       el('div', {
         className: 'level-badge',
         style: {
-          background: isCompleted ? CONFIG.accentColor : isFrontier ? '#141414' : '#FFFFFF',
-          color: isCompleted || isFrontier ? '#FFFFFF' : '#C7C7BE',
-          border: isUnlockedNow ? '2px solid transparent' : '2px solid #E2E2DA',
+          background: isCompleted ? CONFIG.accentColor : isFrontier ? 'linear-gradient(145deg, #4F46E5, #111827)' : '#FFFFFF',
+          color: isCompleted || isFrontier ? '#FFFFFF' : '#94A3B8',
+          border: isUnlockedNow ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(148, 163, 184, 0.24)',
         },
         text: isCompleted ? '✓' : String(i + 1),
       }),
       el('div', { className: 'level-info' }, [
-        el('div', { className: 'level-clue', style: { color: isUnlockedNow ? '#141414' : '#B8B8AF' }, text: isUnlockedNow ? l.clue : 'Locked' }),
+        el('div', { className: 'level-clue', style: { color: isUnlockedNow ? '#16202A' : '#94A3B8' }, text: isUnlockedNow ? l.clue : 'Locked' }),
         el('div', { className: 'level-meta', text: isUnlockedNow ? `${l.word.length} letters` : 'Complete the previous level' }),
       ]),
       el('div', {
         className: 'level-right',
-        style: { color: isCompleted ? CONFIG.accentColor : isFrontier ? '#141414' : '#C7C7BE' },
+        style: { color: isCompleted ? '#047857' : isFrontier ? '#4F46E5' : '#94A3B8' },
         text: isCompleted ? 'DONE' : isFrontier ? 'PLAY' : 'LOCKED',
       }),
     ]);
@@ -177,7 +179,7 @@ function renderPlay(state, game) {
     }))
   );
 
-  const body = el('div', { className: 'play-body' }, [
+  const body = el('div', { className: 'play-body', onClick: () => window.focusMobileKeyboard && window.focusMobileKeyboard() }, [
     el('div', { className: 'clue-label', text: 'CLUE' }),
     el('div', { className: 'clue-text', text: lvl.clue }),
     slotsRow,
@@ -211,7 +213,7 @@ function renderArcadePlay(state, game) {
   const solved = status === 'success';
 
   const timerPct = Math.max(0, Math.round((arcadeTimeLeft / ARCADE_TIME) * 100));
-  const timerColor = timerPct <= 25 ? '#DC2626' : '#141414';
+  const timerColor = timerPct <= 25 ? '#F43F5E' : timerPct <= 55 ? '#F59E0B' : '#10B981';
 
   const header = el('div', { className: 'play-header' }, [
     el('div', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitArcade() }),
@@ -247,7 +249,7 @@ function renderArcadePlay(state, game) {
     }))
   );
 
-  const body = el('div', { className: 'play-body' }, [
+  const body = el('div', { className: 'play-body', onClick: () => window.focusMobileKeyboard && window.focusMobileKeyboard() }, [
     el('div', { className: 'clue-label', text: 'CLUE' }),
     el('div', { className: 'clue-text', text: arcadeClue }),
     slotsRow,

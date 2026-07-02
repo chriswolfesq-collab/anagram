@@ -1,5 +1,5 @@
 const CONFIG = {
-  accentColor: '#22C55E',
+  accentColor: '#10B981',
   tileShape: 'square', // 'square' | 'circle'
 };
 

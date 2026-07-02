@@ -1,5 +1,32 @@
-const game = new Game(state => render(state, game));
+const kbInput = document.getElementById('kb-capture');
+const PLAY_SCREENS = ['play', 'arcadePlay'];
+
+const game = new Game(state => {
+  render(state, game);
+  if (!PLAY_SCREENS.includes(state.screen)) kbInput.blur();
+});
 render(game.state, game);
+
+// Tapping the play area focuses this hidden input, which is what actually
+// summons the on-screen keyboard on mobile (requires a real user gesture).
+window.focusMobileKeyboard = () => {
+  if (PLAY_SCREENS.includes(game.state.screen)) {
+    kbInput.value = '';
+    kbInput.focus();
+  }
+};
+
+kbInput.addEventListener('input', e => {
+  if (!PLAY_SCREENS.includes(game.state.screen)) { kbInput.value = ''; return; }
+  if (e.inputType && e.inputType.startsWith('delete')) {
+    game.backspace();
+    kbInput.value = '';
+    return;
+  }
+  const letters = kbInput.value.replace(/[^a-zA-Z]/g, '');
+  kbInput.value = '';
+  letters.split('').forEach(ch => game.typeLetter(ch.toUpperCase()));
+});
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
