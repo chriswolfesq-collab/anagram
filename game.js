@@ -223,12 +223,17 @@ enforceMaxWordLength(MAX_WORD_LENGTH);
 
 // Stages stay curated; Timed and Daily 5 draw from this larger bank so repeat
 // words are much less common.
-const STAGE_WORDS = STAGES.flatMap(s => s.levels.map(l => [l.word, l.clue]));
+const STAGE_WORDS = STAGES.flatMap((s, stageIdx) => s.levels.map(l => [
+  l.word,
+  l.clue,
+  Math.max(1, Math.min(100, Math.round(((stageIdx + 1) / STAGES.length) * 100))),
+]));
 const STAGE_WORD_SET = new Set(STAGE_WORDS.map(([word]) => word));
 const SUPPLEMENTAL_WORD_PAIRS = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
   .filter(entry => entry.word.length <= MAX_WORD_LENGTH && !STAGE_WORD_SET.has(entry.word))
-  .map(entry => [entry.word, entry.clue]);
+  .map(entry => [entry.word, entry.clue, entry.difficulty]);
 const ALL_WORDS = STAGE_WORDS.concat(SUPPLEMENTAL_WORD_PAIRS);
+const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 65);
 const ARCADE_TIME = 30;
 
 function shuffleArray(arr) {
@@ -241,9 +246,9 @@ function shuffleArray(arr) {
 }
 
 function buildArcadeQueue() {
-  const easy = shuffleArray(ALL_WORDS.filter(([word]) => word.length <= 6));
-  const medium = shuffleArray(ALL_WORDS.filter(([word]) => word.length >= 7 && word.length <= 8));
-  const hard = shuffleArray(ALL_WORDS.filter(([word]) => word.length >= 9));
+  const easy = shuffleArray(ALL_WORDS.filter(([, , difficulty]) => difficulty <= 35));
+  const medium = shuffleArray(ALL_WORDS.filter(([, , difficulty]) => difficulty > 35 && difficulty <= 70));
+  const hard = shuffleArray(ALL_WORDS.filter(([, , difficulty]) => difficulty > 70));
   const pools = { easy, medium, hard };
   const pattern = ['easy', 'easy', 'medium', 'easy', 'medium', 'hard'];
   const queue = [];
@@ -325,12 +330,15 @@ function seededRandom(seed) {
 
 function dailyWordsForDate(dateKey) {
   const random = seededRandom(seedFromString(dateKey));
+  const easy = DAILY_WORDS.filter(([, , difficulty]) => difficulty <= 30);
+  const medium = DAILY_WORDS.filter(([, , difficulty]) => difficulty > 30 && difficulty <= 55);
+  const harder = DAILY_WORDS.filter(([, , difficulty]) => difficulty > 55 && difficulty <= 75);
   const bands = [
-    ALL_WORDS.filter(([word]) => word.length <= 6),
-    ALL_WORDS.filter(([word]) => word.length === 7),
-    ALL_WORDS.filter(([word]) => word.length === 8),
-    ALL_WORDS.filter(([word]) => word.length === 9),
-    ALL_WORDS.filter(([word]) => word.length === 10),
+    easy,
+    easy,
+    medium,
+    medium,
+    harder,
   ];
   return bands.map(band => band[Math.floor(random() * band.length)]);
 }
