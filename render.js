@@ -45,6 +45,14 @@ function renderHome(state, game) {
     el('span', { className: 'home-choice-meta', text: `Longest streak ${state.arcadeBest}` }),
   ]);
 
+  const survivalChoice = el('button', {
+    className: 'home-choice',
+    onClick: () => game.startSurvival(),
+  }, [
+    el('span', { className: 'home-choice-title', text: 'Survival' }),
+    el('span', { className: 'home-choice-meta', text: `Best ${state.survivalBest} pts` }),
+  ]);
+
   const dailyResult = state.dailyResult && state.dailyResult.date === todayKey() ? state.dailyResult : null;
   const dailyResetText = `resets in ${formatCountdown(state.dailyResetIn)}`;
   const dailyChoice = el('button', {
@@ -59,7 +67,7 @@ function renderHome(state, game) {
   return el('div', { className: 'screen home-screen' }, [
     el('div', { className: 'home-inner' }, [
       el('div', { className: 'home-title', 'aria-label': 'ANAGRAM' }, titleTiles),
-      el('div', { className: 'home-actions' }, [stagesChoice, timedChoice, dailyChoice]),
+      el('div', { className: 'home-actions' }, [stagesChoice, timedChoice, survivalChoice, dailyChoice]),
     ]),
   ]);
 }
@@ -195,6 +203,7 @@ function renderPlay(state, game) {
     el('div', { className: 'clue-text', text: lvl.clue }),
     slotsRow,
     el('div', { className: 'hint-text', text: 'Tap or type letters to build the word' }),
+    el('button', { className: 'shuffle-button', text: 'Shuffle', onClick: () => game.shuffleTiles() }),
     tilesRow,
   ]);
 
@@ -265,6 +274,75 @@ function renderArcadePlay(state, game) {
     el('div', { className: 'clue-text', text: arcadeClue }),
     slotsRow,
     el('div', { className: 'hint-text', text: 'Tap or type letters to build the word' }),
+    el('button', { className: 'shuffle-button', text: 'Shuffle', onClick: () => game.shuffleTiles() }),
+    tilesRow,
+  ]);
+
+  return el('div', { className: 'screen', style: { position: 'relative' } }, [header, timerBar, body]);
+}
+
+function renderSurvivalPlay(state, game) {
+  const { scrambled, slots, status, survivalWord, survivalClue, survivalScore, survivalTimeLeft, survivalStreak, survivalLastPoints, survivalLastBonus } = state;
+  const { slotSize, slotFont, slotGap, tileRadius } = tileMetrics(survivalWord.length);
+  const solved = status === 'success';
+  const multiplier = 1 + Math.floor(survivalStreak / 10) * 0.5;
+
+  const timerPct = Math.max(0, Math.round((survivalTimeLeft / SURVIVAL_MAX_TIME) * 100));
+  const timerColor = timerPct <= 25 ? '#F43F5E' : timerPct <= 55 ? '#F59E0B' : '#10B981';
+
+  const header = el('div', { className: 'play-header' }, [
+    el('div', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitSurvival() }),
+    el('div', { className: 'play-level-label', text: `SCORE ${survivalScore}` }),
+    el('div', { className: 'play-timer', style: { color: timerColor }, text: survivalTimeLeft + 's' }),
+  ]);
+
+  const timerBar = el('div', { className: 'timer-track' }, [
+    el('div', { className: 'timer-fill', style: { width: timerPct + '%', background: timerColor } }),
+  ]);
+
+  const slotsRow = el('div', { className: 'slots-row', style: { gap: slotGap + 'px' } },
+    slots.map((tileId, i) => {
+      const tile = tileId ? scrambled.find(t => t.id === tileId) : null;
+      return el('div', {
+        className: 'tile slot-tile' + (tile ? ' filled' : '') + (solved ? ' correct' : ''),
+        style: {
+          width: slotSize + 'px', height: slotSize + 'px', fontSize: slotFont + 'px', borderRadius: tileRadius,
+          ...(solved ? { background: CONFIG.accentColor, borderColor: CONFIG.accentColor } : {}),
+        },
+        text: tile ? tile.ch : '',
+        onClick: () => game.tapSlot(i),
+      });
+    })
+  );
+
+  const tilesRow = el('div', { className: 'tiles-row', style: { gap: slotGap + 'px' } },
+    scrambled.map(t => el('div', {
+      className: 'tile bank-tile' + (t.used ? ' used' : ''),
+      style: { width: slotSize + 'px', height: slotSize + 'px', fontSize: slotFont + 'px', borderRadius: tileRadius },
+      text: t.ch,
+      onClick: () => game.tapScrambled(t.id),
+    }))
+  );
+
+  const survivalMeta = el('div', { className: 'arcade-meta' }, [
+    el('div', { text: `STREAK ${survivalStreak}` }),
+    el('div', { text: `${multiplier}x` }),
+  ]);
+
+  const bonusText = survivalLastPoints ? `+${survivalLastPoints}${survivalLastBonus ? ' · ' + survivalLastBonus : ''}` : survivalLastBonus;
+
+  const body = el('div', { className: 'play-body', onClick: () => window.focusMobileKeyboard && window.focusMobileKeyboard() }, [
+    survivalMeta,
+    bonusText ? el('div', { className: 'arcade-bonus', text: bonusText }) : null,
+    el('div', { className: 'clue-label', text: 'CLUE' }),
+    el('div', { className: 'clue-text', text: survivalClue }),
+    slotsRow,
+    el('div', { className: 'hint-text', text: 'Tap or type letters to build the word' }),
+    el('div', { className: 'play-actions' }, [
+      el('button', { className: 'shuffle-button', text: 'Shuffle', onClick: () => game.shuffleTiles() }),
+      el('button', { className: 'shuffle-button secondary', text: 'Skip', onClick: () => game.skipSurvivalWord() }),
+      el('span', { className: 'skip-penalty', text: '-3s' }),
+    ]),
     tilesRow,
   ]);
 
@@ -316,6 +394,7 @@ function renderDailyPlay(state, game) {
     el('div', { className: 'clue-text', text: dailyClue }),
     slotsRow,
     el('div', { className: 'hint-text', text: 'Solve all 5 as fast as you can' }),
+    el('button', { className: 'shuffle-button', text: 'Shuffle', onClick: () => game.shuffleTiles() }),
     tilesRow,
   ]);
 
@@ -332,6 +411,22 @@ function renderArcadeOver(state, game) {
     el('button', { className: 'btn-primary inline', text: 'Share Score', style: { marginBottom: '12px' }, onClick: () => game.shareArcade() }),
     state.arcadeShareStatus ? el('div', { className: 'share-status', text: state.arcadeShareStatus }) : null,
     el('button', { className: 'btn-primary inline', text: 'Play Again', style: { marginBottom: '12px' }, onClick: () => game.startArcade() }),
+    el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
+  ]);
+}
+
+function renderSurvivalOver(state, game) {
+  const isNewBest = state.survivalScore >= state.survivalBest && state.survivalScore > 0;
+  const bonusLine = state.survivalNoSkipBonus ? `No-skip bonus: +${state.survivalNoSkipBonus}` : `${state.survivalSkips} ${state.survivalSkips === 1 ? 'skip' : 'skips'} used`;
+  return el('div', { className: 'center-screen' }, [
+    el('div', { className: 'center-eyebrow', text: "TIME'S UP" }),
+    el('div', { className: 'center-title-mono', text: `${state.survivalScore} pts` }),
+    state.survivalWord ? el('div', { className: 'center-answer', text: `Answer: ${state.survivalWord}` }) : null,
+    el('div', { className: 'center-answer', text: bonusLine }),
+    el('div', { className: 'center-desc', text: isNewBest ? 'New best score!' : `Best: ${state.survivalBest} pts` }),
+    el('button', { className: 'btn-primary inline', text: 'Share Score', style: { marginBottom: '12px' }, onClick: () => game.shareSurvival() }),
+    state.survivalShareStatus ? el('div', { className: 'share-status', text: state.survivalShareStatus }) : null,
+    el('button', { className: 'btn-primary inline', text: 'Play Again', style: { marginBottom: '12px' }, onClick: () => game.startSurvival() }),
     el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
   ]);
 }
@@ -381,8 +476,10 @@ function render(state, game) {
     case 'levels': node = renderLevels(state, game); break;
     case 'play': node = renderPlay(state, game); break;
     case 'arcadePlay': node = renderArcadePlay(state, game); break;
+    case 'survivalPlay': node = renderSurvivalPlay(state, game); break;
     case 'dailyPlay': node = renderDailyPlay(state, game); break;
     case 'arcadeOver': node = renderArcadeOver(state, game); break;
+    case 'survivalOver': node = renderSurvivalOver(state, game); break;
     case 'dailyDone': node = renderDailyDone(state, game); break;
     case 'stageDone': node = renderStageDone(state, game); break;
     case 'done': node = renderDone(state, game); break;

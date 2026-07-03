@@ -1,5 +1,5 @@
 const kbInput = document.getElementById('kb-capture');
-const PLAY_SCREENS = ['play', 'arcadePlay', 'dailyPlay'];
+const PLAY_SCREENS = ['play', 'arcadePlay', 'survivalPlay', 'dailyPlay'];
 
 const game = new Game(state => {
   render(state, game);
@@ -51,6 +51,9 @@ document.addEventListener('keydown', e => {
     } else if (game.state.screen === 'arcadeOver') {
       e.preventDefault();
       game.startArcade();
+    } else if (game.state.screen === 'survivalOver') {
+      e.preventDefault();
+      game.startSurvival();
     } else if (game.state.screen === 'dailyDone') {
       e.preventDefault();
       game.goHome();
@@ -61,6 +64,11 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Backspace') {
     e.preventDefault();
     game.backspace();
+    return;
+  }
+  if (e.key === ' ') {
+    e.preventDefault();
+    game.shuffleTiles();
     return;
   }
   if (/^[a-zA-Z]$/.test(e.key)) {

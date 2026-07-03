@@ -368,6 +368,14 @@ const SUPPLEMENTAL_WORD_PAIRS = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] 
 const ALL_WORDS = STAGE_WORDS.concat(SUPPLEMENTAL_WORD_PAIRS);
 const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 65);
 const ARCADE_TIME = 30;
+const SURVIVAL_START_TIME = 30;
+const SURVIVAL_MAX_TIME = 60;
+const SURVIVAL_TIME_BONUS = 5;
+const SURVIVAL_SKIP_PENALTY = 3;
+const SURVIVAL_BASE_POINTS = 100;
+const SURVIVAL_FAST_SOLVE_SECONDS = 3;
+const SURVIVAL_FAST_SOLVE_BONUS = 50;
+const SURVIVAL_NO_SKIP_BONUS = 250;
 
 function shuffleArray(arr) {
   const out = arr.slice();
@@ -414,6 +422,7 @@ function applyTap(scrambled, slots, tileId) {
 
 const STORAGE_KEY = 'anagram_wordgame_progress_v2';
 const ARCADE_BEST_KEY = 'anagram_wordgame_arcade_best_v1';
+const SURVIVAL_BEST_KEY = 'anagram_wordgame_survival_best_v1';
 const DAILY_RESULT_KEY = 'anagram_wordgame_daily_result_v1';
 const DAILY_COUNT = 5;
 
@@ -483,10 +492,123 @@ function formatDuration(totalSeconds) {
   return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function dataUrlToFile(dataUrl, filename) {
+  const [meta, data] = dataUrl.split(',');
+  const mime = (meta.match(/data:(.*?);base64/) || [])[1] || 'image/png';
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new File([bytes], filename, { type: mime });
+}
+
+function makeScoreShareImage({ mode, score, scoreLabel, detail, bestLine, isNewBest }) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1350;
+  const ctx = canvas.getContext('2d');
+
+  const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  bg.addColorStop(0, '#F7F2E8');
+  bg.addColorStop(0.52, '#EAF7F0');
+  bg.addColorStop(1, '#EDF2FF');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = 'rgba(255, 205, 86, 0.32)';
+  ctx.beginPath();
+  ctx.arc(155, 155, 260, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(79, 70, 229, 0.18)';
+  ctx.beginPath();
+  ctx.arc(965, 155, 250, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(22, 32, 42, 0.055)';
+  ctx.lineWidth = 2;
+  for (let x = 0; x <= canvas.width; x += 70) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += 70) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+
+  roundRect(ctx, 110, 170, 860, 1010, 34);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(22, 32, 42, 0.1)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#16202A';
+  ctx.font = '700 72px "Space Mono", monospace';
+  ctx.fillText('ANAGRAM', 540, 305);
+
+  ctx.fillStyle = '#047857';
+  ctx.font = '700 34px "Space Mono", monospace';
+  ctx.fillText(mode.toUpperCase(), 540, 405);
+
+  ctx.fillStyle = '#16202A';
+  ctx.font = '700 210px "Space Mono", monospace';
+  ctx.fillText(String(score), 540, 650);
+
+  ctx.fillStyle = '#697586';
+  ctx.font = '700 48px Inter, Arial, sans-serif';
+  ctx.fillText(scoreLabel, 540, 730);
+
+  ctx.fillStyle = isNewBest ? '#047857' : '#697586';
+  ctx.font = '800 42px Inter, Arial, sans-serif';
+  ctx.fillText(isNewBest ? 'New best score!' : bestLine, 540, 835);
+
+  if (detail) {
+    ctx.fillStyle = '#16202A';
+    ctx.font = '700 34px "Space Mono", monospace';
+    ctx.fillText(detail, 540, 925);
+  }
+
+  ctx.fillStyle = '#4F46E5';
+  ctx.font = '700 30px "Space Mono", monospace';
+  ctx.fillText('SHARE YOUR SCORE', 540, 1075);
+
+  const dataUrl = canvas.toDataURL('image/png');
+  return dataUrlToFile(dataUrl, `anagram-${mode.toLowerCase().replace(/\s+/g, '-')}-score.png`);
+}
+
+function downloadShareImage(file) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 class Game {
   constructor(onChange) {
     this.onChange = onChange;
     this.arcadeTimerId = null;
+    this.survivalTimerId = null;
     this.dailyTimerId = null;
     this.dailyResetTimerId = null;
     this.dailyCountdownTimerId = null;
@@ -506,6 +628,20 @@ class Game {
       arcadeTimeLeft: ARCADE_TIME,
       arcadeBest: 0,
       arcadeShareStatus: '',
+      survivalQueue: [],
+      survivalWord: '',
+      survivalClue: '',
+      survivalScore: 0,
+      survivalSolved: 0,
+      survivalStreak: 0,
+      survivalSkips: 0,
+      survivalWordStartedAt: 0,
+      survivalLastPoints: 0,
+      survivalLastBonus: '',
+      survivalNoSkipBonus: 0,
+      survivalTimeLeft: SURVIVAL_START_TIME,
+      survivalBest: 0,
+      survivalShareStatus: '',
       dailyDate: todayKey(),
       dailyQueue: [],
       dailyIndex: 0,
@@ -519,6 +655,7 @@ class Game {
     };
     this.loadProgress();
     this.loadArcadeBest();
+    this.loadSurvivalBest();
     this.loadDailyResult();
     this.scheduleDailyReset();
     this.startDailyCountdown();
@@ -588,6 +725,19 @@ class Game {
     } catch (e) {}
   }
 
+  loadSurvivalBest() {
+    try {
+      const best = parseInt(localStorage.getItem(SURVIVAL_BEST_KEY), 10);
+      if (!isNaN(best) && best > 0) this.state.survivalBest = best;
+    } catch (e) {}
+  }
+
+  saveSurvivalBest(best) {
+    try {
+      localStorage.setItem(SURVIVAL_BEST_KEY, String(best));
+    } catch (e) {}
+  }
+
   loadDailyResult() {
     try {
       const saved = JSON.parse(localStorage.getItem(DAILY_RESULT_KEY) || 'null');
@@ -624,8 +774,21 @@ class Game {
     return arr;
   }
 
+  shuffleTiles() {
+    const { status, scrambled } = this.state;
+    if (status !== 'playing') return;
+    const unusedTiles = shuffleArray(scrambled.filter(t => !t.used));
+    let nextUnusedIndex = 0;
+    const nextScrambled = scrambled.map(tile => {
+      if (tile.used) return tile;
+      return unusedTiles[nextUnusedIndex++];
+    });
+    this.setState({ scrambled: nextScrambled });
+  }
+
   goHome() {
     if (this.arcadeTimerId) clearInterval(this.arcadeTimerId);
+    if (this.survivalTimerId) clearInterval(this.survivalTimerId);
     if (this.dailyTimerId) clearInterval(this.dailyTimerId);
     this.setState({ screen: 'home' });
   }
@@ -702,18 +865,137 @@ class Game {
 
   async shareArcade() {
     const text = `Timed Challenge: I solved ${this.state.arcadeScore} ${this.state.arcadeScore === 1 ? 'word' : 'words'} in Anagram`;
+    const file = makeScoreShareImage({
+      mode: 'Timed Challenge',
+      score: this.state.arcadeScore,
+      scoreLabel: this.state.arcadeScore === 1 ? 'word solved' : 'words solved',
+      detail: this.state.arcadeWord ? `Answer: ${this.state.arcadeWord}` : '',
+      bestLine: `Best: ${this.state.arcadeBest}`,
+      isNewBest: this.state.arcadeScore >= this.state.arcadeBest && this.state.arcadeScore > 0,
+    });
     try {
-      if (navigator.share) {
-        await navigator.share({ text });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Anagram Score', text, files: [file] });
         this.setState({ arcadeShareStatus: 'Shared!' });
       } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        downloadShareImage(file);
         await navigator.clipboard.writeText(text);
-        this.setState({ arcadeShareStatus: 'Copied!' });
+        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
       } else {
-        this.setState({ arcadeShareStatus: text });
+        downloadShareImage(file);
+        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
       }
     } catch (e) {
-      this.setState({ arcadeShareStatus: 'Share canceled' });
+      if (e && e.name === 'AbortError') {
+        this.setState({ arcadeShareStatus: 'Share canceled' });
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        downloadShareImage(file);
+        await navigator.clipboard.writeText(text);
+        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
+      } else {
+        downloadShareImage(file);
+        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
+      }
+    }
+  }
+
+  // --- Survival mode ---
+
+  startSurvival() {
+    if (this.survivalTimerId) clearInterval(this.survivalTimerId);
+    this.setState({
+      screen: 'survivalPlay',
+      survivalQueue: buildArcadeQueue(),
+      survivalScore: 0,
+      survivalSolved: 0,
+      survivalStreak: 0,
+      survivalSkips: 0,
+      survivalTimeLeft: SURVIVAL_START_TIME,
+      survivalShareStatus: '',
+      survivalLastPoints: 0,
+      survivalLastBonus: '',
+      survivalNoSkipBonus: 0,
+    });
+    this.loadNextSurvivalWord();
+    this.startSurvivalTimer();
+  }
+
+  loadNextSurvivalWord() {
+    let queue = this.state.survivalQueue;
+    if (queue.length === 0) queue = buildArcadeQueue();
+    const [word, clue] = queue[0];
+    this.setState({
+      survivalQueue: queue.slice(1),
+      survivalWord: word,
+      survivalClue: clue,
+      scrambled: this.shuffle(word),
+      slots: new Array(word.length).fill(null),
+      survivalWordStartedAt: Date.now(),
+      status: 'playing',
+    });
+  }
+
+  startSurvivalTimer() {
+    if (this.survivalTimerId) clearInterval(this.survivalTimerId);
+    this.survivalTimerId = setInterval(() => {
+      if (this.state.screen !== 'survivalPlay') return;
+      const t = this.state.survivalTimeLeft - 1;
+      if (t <= 0) {
+        clearInterval(this.survivalTimerId);
+        this.endSurvival();
+      } else {
+        this.setState({ survivalTimeLeft: t });
+      }
+    }, 1000);
+  }
+
+  endSurvival() {
+    if (this.survivalTimerId) clearInterval(this.survivalTimerId);
+    const survivalNoSkipBonus = this.state.survivalSolved > 0 && this.state.survivalSkips === 0 ? SURVIVAL_NO_SKIP_BONUS : 0;
+    const finalScore = this.state.survivalScore + survivalNoSkipBonus;
+    const best = Math.max(this.state.survivalBest, finalScore);
+    this.saveSurvivalBest(best);
+    this.setState({ screen: 'survivalOver', survivalScore: finalScore, survivalBest: best, survivalNoSkipBonus, status: 'over' });
+  }
+
+  exitSurvival() {
+    if (this.survivalTimerId) clearInterval(this.survivalTimerId);
+    this.setState({ screen: 'home' });
+  }
+
+  async shareSurvival() {
+    const text = `Survival: I scored ${this.state.survivalScore} points in Anagram`;
+    const file = makeScoreShareImage({
+      mode: 'Survival',
+      score: this.state.survivalScore,
+      scoreLabel: 'points',
+      detail: this.state.survivalNoSkipBonus ? `No-skip bonus: +${this.state.survivalNoSkipBonus}` : `${this.state.survivalSkips} ${this.state.survivalSkips === 1 ? 'skip' : 'skips'} used`,
+      bestLine: `Best: ${this.state.survivalBest} pts`,
+      isNewBest: this.state.survivalScore >= this.state.survivalBest && this.state.survivalScore > 0,
+    });
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Anagram Score', text, files: [file] });
+        this.setState({ survivalShareStatus: 'Shared!' });
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        downloadShareImage(file);
+        await navigator.clipboard.writeText(text);
+        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
+      } else {
+        downloadShareImage(file);
+        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        this.setState({ survivalShareStatus: 'Share canceled' });
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        downloadShareImage(file);
+        await navigator.clipboard.writeText(text);
+        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
+      } else {
+        downloadShareImage(file);
+        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
+      }
     }
   }
 
@@ -833,6 +1115,8 @@ class Game {
     if (!result) return;
     if (this.state.screen === 'arcadePlay') {
       this.resolveArcadeTap(result);
+    } else if (this.state.screen === 'survivalPlay') {
+      this.resolveSurvivalTap(result);
     } else if (this.state.screen === 'dailyPlay') {
       this.resolveDailyTap(result);
     } else {
@@ -865,6 +1149,47 @@ class Game {
       return;
     }
     this.setState({ scrambled: result.scrambled, slots: result.slots });
+  }
+
+  resolveSurvivalTap(result) {
+    const { survivalWord, survivalScore, survivalSolved, survivalStreak, survivalWordStartedAt, survivalTimeLeft } = this.state;
+    if (result.filled && result.word === survivalWord) {
+      const elapsed = (Date.now() - survivalWordStartedAt) / 1000;
+      const nextStreak = survivalStreak + 1;
+      const multiplier = 1 + Math.floor(nextStreak / 10) * 0.5;
+      const solvePoints = Math.round(SURVIVAL_BASE_POINTS * multiplier);
+      const fastBonus = elapsed < SURVIVAL_FAST_SOLVE_SECONDS ? SURVIVAL_FAST_SOLVE_BONUS : 0;
+      const points = solvePoints + fastBonus;
+      const bonusParts = [];
+      if (multiplier > 1) bonusParts.push(`${multiplier}x streak`);
+      if (fastBonus) bonusParts.push(`+${fastBonus} fast`);
+      this.setState({
+        scrambled: result.scrambled,
+        slots: result.slots,
+        status: 'success',
+        survivalScore: survivalScore + points,
+        survivalSolved: survivalSolved + 1,
+        survivalStreak: nextStreak,
+        survivalTimeLeft: Math.min(SURVIVAL_MAX_TIME, survivalTimeLeft + SURVIVAL_TIME_BONUS),
+        survivalLastPoints: points,
+        survivalLastBonus: bonusParts.join(' · '),
+      });
+      setTimeout(() => this.loadNextSurvivalWord(), 500);
+      return;
+    }
+    this.setState({ scrambled: result.scrambled, slots: result.slots });
+  }
+
+  skipSurvivalWord() {
+    if (this.state.screen !== 'survivalPlay' || this.state.status !== 'playing') return;
+    const survivalTimeLeft = Math.max(0, this.state.survivalTimeLeft - SURVIVAL_SKIP_PENALTY);
+    this.setState({ survivalSkips: this.state.survivalSkips + 1, survivalStreak: 0, survivalLastPoints: 0, survivalLastBonus: 'Skipped', survivalTimeLeft });
+    if (survivalTimeLeft <= 0) {
+      if (this.survivalTimerId) clearInterval(this.survivalTimerId);
+      this.endSurvival();
+      return;
+    }
+    this.loadNextSurvivalWord();
   }
 
   tapSlot(slotIdx) {
