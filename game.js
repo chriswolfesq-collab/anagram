@@ -370,9 +370,10 @@ const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 65);
 const ARCADE_TIME = 30;
 const SURVIVAL_START_TIME = 30;
 const SURVIVAL_MAX_TIME = 60;
-const SURVIVAL_TIME_BONUS = 5;
+const SURVIVAL_TIME_BONUS = 8;
 const SURVIVAL_SKIP_PENALTY = 3;
 const SURVIVAL_BASE_POINTS = 100;
+const SURVIVAL_STREAK_BONUS_STEP = 25;
 const SURVIVAL_FAST_SOLVE_SECONDS = 3;
 const SURVIVAL_FAST_SOLVE_BONUS = 50;
 const SURVIVAL_NO_SKIP_BONUS = 250;
@@ -1156,12 +1157,11 @@ class Game {
     if (result.filled && result.word === survivalWord) {
       const elapsed = (Date.now() - survivalWordStartedAt) / 1000;
       const nextStreak = survivalStreak + 1;
-      const multiplier = 1 + Math.floor(nextStreak / 10) * 0.5;
-      const solvePoints = Math.round(SURVIVAL_BASE_POINTS * multiplier);
+      const streakBonus = nextStreak % 5 === 0 ? (nextStreak / 5) * SURVIVAL_STREAK_BONUS_STEP : 0;
       const fastBonus = elapsed < SURVIVAL_FAST_SOLVE_SECONDS ? SURVIVAL_FAST_SOLVE_BONUS : 0;
-      const points = solvePoints + fastBonus;
+      const points = SURVIVAL_BASE_POINTS + streakBonus + fastBonus;
       const bonusParts = [];
-      if (multiplier > 1) bonusParts.push(`${multiplier}x streak`);
+      if (streakBonus) bonusParts.push(`+${streakBonus} streak`);
       if (fastBonus) bonusParts.push(`+${fastBonus} fast`);
       this.setState({
         scrambled: result.scrambled,

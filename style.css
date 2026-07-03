@@ -15,6 +15,7 @@
   --gold: #F59E0B;
   --shadow: 0 18px 45px rgba(32, 44, 63, 0.14);
   --shadow-soft: 0 10px 24px rgba(32, 44, 63, 0.1);
+  --app-height: 100vh;
 }
 
 html, body {
@@ -41,7 +42,7 @@ input {
 #app {
   width: 100%;
   max-width: 430px;
-  min-height: 100vh;
+  min-height: var(--app-height);
   margin: 0 auto;
   position: relative;
   color: var(--ink);
@@ -98,9 +99,14 @@ input {
 .screen {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: var(--app-height);
   position: relative;
   z-index: 1;
+}
+
+.play-screen {
+  height: var(--app-height);
+  overflow: hidden;
 }
 
 .screen-header {
@@ -495,6 +501,7 @@ input {
 
 .play-body {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -753,7 +760,7 @@ input {
 /* ---------- Stage Complete / All Done ---------- */
 
 .center-screen {
-  min-height: 100vh;
+  min-height: var(--app-height);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -762,6 +769,76 @@ input {
   text-align: center;
   position: relative;
   z-index: 1;
+}
+
+@media (max-height: 640px) {
+  .play-header {
+    padding: 12px 16px 0;
+  }
+
+  .play-header .back-link {
+    padding: 3px 0;
+  }
+
+  .play-level-label,
+  .play-timer {
+    font-size: 13px;
+  }
+
+  .timer-track {
+    height: 5px;
+    margin: 8px 16px 0;
+  }
+
+  .play-body {
+    justify-content: flex-start;
+    padding: 8px 16px 10px;
+  }
+
+  .clue-label {
+    font-size: 10px;
+    margin-bottom: 6px;
+    padding: 4px 8px;
+  }
+
+  .clue-text {
+    font-size: 18px;
+    line-height: 1.18;
+    margin-bottom: 14px;
+    max-width: 320px;
+  }
+
+  .slots-row {
+    margin-bottom: 16px;
+  }
+
+  .hint-text {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+
+  .arcade-meta {
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+
+  .arcade-bonus {
+    min-height: 16px;
+    font-size: 11px;
+    margin-bottom: 5px;
+  }
+
+  .play-actions {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .shuffle-button {
+    font-size: 11px;
+    min-height: 31px;
+    margin-bottom: 10px;
+    padding: 0 12px;
+  }
 }
 
 .center-icon {

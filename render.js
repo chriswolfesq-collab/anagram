@@ -218,7 +218,7 @@ function renderPlay(state, game) {
     ]),
   ]) : null;
 
-  const screen = el('div', { className: 'screen', style: { position: 'relative' } }, [
+  const screen = el('div', { className: 'screen play-screen', style: { position: 'relative' } }, [
     header,
     body,
     successModal,
@@ -278,14 +278,15 @@ function renderArcadePlay(state, game) {
     tilesRow,
   ]);
 
-  return el('div', { className: 'screen', style: { position: 'relative' } }, [header, timerBar, body]);
+  return el('div', { className: 'screen play-screen', style: { position: 'relative' } }, [header, timerBar, body]);
 }
 
 function renderSurvivalPlay(state, game) {
   const { scrambled, slots, status, survivalWord, survivalClue, survivalScore, survivalTimeLeft, survivalStreak, survivalLastPoints, survivalLastBonus } = state;
   const { slotSize, slotFont, slotGap, tileRadius } = tileMetrics(survivalWord.length);
   const solved = status === 'success';
-  const multiplier = 1 + Math.floor(survivalStreak / 10) * 0.5;
+  const nextStreakMilestone = Math.ceil((survivalStreak + 1) / 5) * 5;
+  const nextStreakBonus = (nextStreakMilestone / 5) * SURVIVAL_STREAK_BONUS_STEP;
 
   const timerPct = Math.max(0, Math.round((survivalTimeLeft / SURVIVAL_MAX_TIME) * 100));
   const timerColor = timerPct <= 25 ? '#F43F5E' : timerPct <= 55 ? '#F59E0B' : '#10B981';
@@ -326,7 +327,7 @@ function renderSurvivalPlay(state, game) {
 
   const survivalMeta = el('div', { className: 'arcade-meta' }, [
     el('div', { text: `STREAK ${survivalStreak}` }),
-    el('div', { text: `${multiplier}x` }),
+    el('div', { text: `NEXT ${nextStreakMilestone}: +${nextStreakBonus}` }),
   ]);
 
   const bonusText = survivalLastPoints ? `+${survivalLastPoints}${survivalLastBonus ? ' · ' + survivalLastBonus : ''}` : survivalLastBonus;
@@ -346,7 +347,7 @@ function renderSurvivalPlay(state, game) {
     tilesRow,
   ]);
 
-  return el('div', { className: 'screen', style: { position: 'relative' } }, [header, timerBar, body]);
+  return el('div', { className: 'screen play-screen survival-play', style: { position: 'relative' } }, [header, timerBar, body]);
 }
 
 function renderDailyPlay(state, game) {
@@ -398,7 +399,7 @@ function renderDailyPlay(state, game) {
     tilesRow,
   ]);
 
-  return el('div', { className: 'screen', style: { position: 'relative' } }, [header, progressBar, body]);
+  return el('div', { className: 'screen play-screen', style: { position: 'relative' } }, [header, progressBar, body]);
 }
 
 function renderArcadeOver(state, game) {

@@ -1,6 +1,19 @@
 const kbInput = document.getElementById('kb-capture');
 const PLAY_SCREENS = ['play', 'arcadePlay', 'survivalPlay', 'dailyPlay'];
 
+function syncVisibleViewportHeight() {
+  const viewport = window.visualViewport;
+  const height = viewport ? viewport.height : window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${height}px`);
+}
+
+syncVisibleViewportHeight();
+window.addEventListener('resize', syncVisibleViewportHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncVisibleViewportHeight);
+  window.visualViewport.addEventListener('scroll', syncVisibleViewportHeight);
+}
+
 const game = new Game(state => {
   render(state, game);
   // Entering a play screen always happens as the direct result of a tap
@@ -10,6 +23,7 @@ const game = new Game(state => {
   if (PLAY_SCREENS.includes(state.screen)) {
     kbInput.value = '';
     kbInput.focus();
+    requestAnimationFrame(syncVisibleViewportHeight);
   } else {
     kbInput.blur();
   }
