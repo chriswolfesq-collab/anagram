@@ -507,6 +507,9 @@ input {
   align-items: center;
   justify-content: center;
   padding: 20px 24px 18px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .clue-label {
@@ -652,6 +655,7 @@ input {
   display: flex;
   justify-content: center;
   flex-wrap: nowrap;
+  flex: 0 0 auto;
 }
 
 .bank-tile {
@@ -677,6 +681,15 @@ input {
   pointer-events: none;
   transform: translateY(5px);
   box-shadow: none;
+}
+
+.survival-play .play-body {
+  justify-content: flex-start;
+  padding-bottom: max(22px, env(safe-area-inset-bottom));
+}
+
+.survival-play .tiles-row {
+  padding-bottom: 8px;
 }
 
 /* ---------- Modals ---------- */
@@ -795,6 +808,10 @@ input {
     padding: 8px 16px 10px;
   }
 
+  .survival-play .play-body {
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+
   .clue-label {
     font-size: 10px;
     margin-bottom: 6px;
@@ -838,6 +855,43 @@ input {
     min-height: 31px;
     margin-bottom: 10px;
     padding: 0 12px;
+  }
+}
+
+@media (max-height: 560px) {
+  .survival-play .play-header {
+    padding-top: 8px;
+  }
+
+  .survival-play .timer-track {
+    margin-top: 6px;
+  }
+
+  .survival-play .play-body {
+    padding-top: 6px;
+    gap: 0;
+  }
+
+  .survival-play .clue-label {
+    margin-bottom: 5px;
+  }
+
+  .survival-play .clue-text {
+    font-size: 16px;
+    line-height: 1.14;
+    margin-bottom: 10px;
+  }
+
+  .survival-play .slots-row {
+    margin-bottom: 12px;
+  }
+
+  .survival-play .hint-text {
+    margin-bottom: 6px;
+  }
+
+  .survival-play .play-actions {
+    margin-bottom: 8px;
   }
 }
 
