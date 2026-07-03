@@ -63,11 +63,23 @@ function renderHome(state, game) {
     el('span', { className: 'home-choice-title', text: 'Daily 5' }),
     el('span', { className: 'home-choice-meta', text: dailyResult ? `Completed ${formatDuration(dailyResult.elapsed)} · ${dailyResetText}` : dailyResetText }),
   ]);
+  const dailyArea = dailyResult ? el('div', { className: 'home-daily-complete' }, [
+    el('div', { className: 'home-daily-row' }, [
+      dailyChoice,
+      el('button', {
+        className: 'home-share-button',
+        text: 'Share',
+        'aria-label': 'Share Daily 5 score',
+        onClick: () => game.shareDaily(),
+      }),
+    ]),
+    state.dailyShareStatus ? el('div', { className: 'home-share-status', text: state.dailyShareStatus }) : null,
+  ]) : dailyChoice;
 
   return el('div', { className: 'screen home-screen' }, [
     el('div', { className: 'home-inner' }, [
       el('div', { className: 'home-title', 'aria-label': 'ANAGRAM' }, titleTiles),
-      el('div', { className: 'home-actions' }, [stagesChoice, timedChoice, survivalChoice, dailyChoice]),
+      el('div', { className: 'home-actions' }, [stagesChoice, timedChoice, survivalChoice, dailyArea]),
     ]),
   ]);
 }

@@ -1093,7 +1093,8 @@ class Game {
   async shareDaily() {
     const result = this.state.dailyResult;
     const elapsed = result ? result.elapsed : this.state.dailyElapsed;
-    const text = `Daily 5 ${this.state.dailyDate}: ${formatDuration(elapsed)} in Anagram`;
+    const date = result ? result.date : this.state.dailyDate;
+    const text = `Daily 5 ${date}: ${formatDuration(elapsed)} in Anagram`;
     try {
       if (navigator.share) {
         await navigator.share({ text });

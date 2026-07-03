@@ -280,6 +280,54 @@ input {
   transform: translateY(1px);
 }
 
+.home-daily-complete {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-daily-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.home-daily-row .home-choice {
+  min-width: 0;
+}
+
+.home-share-button {
+  min-width: 78px;
+  border: 1px solid rgba(255,255,255,0.72);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(32, 44, 63, 0.1);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.home-share-button:hover {
+  background: var(--accent-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(32, 44, 63, 0.14);
+}
+
+.home-share-button:active {
+  transform: translateY(1px);
+}
+
+.home-share-status {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  text-align: right;
+}
+
 /* ---------- Stage / Mode Select ---------- */
 
 .stage-list {
