@@ -329,10 +329,19 @@ const SUPPLEMENTAL_WORD_PAIRS = CANDIDATE_POOL
   .filter(entry => !STAGE_WORD_SET.has(entry.word))
   .map(entry => [entry.word, entry.clue, entry.difficulty]);
 const ALL_WORDS = STAGE_WORDS.concat(SUPPLEMENTAL_WORD_PAIRS);
-// Cap matches the "harder" band's upper bound in dailyWordsForDate below, so
-// the fifth daily word can actually reach that band instead of being
-// silently truncated to whatever's left under a lower ceiling.
-const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 75);
+
+// Daily 5 is pinned to CANDIDATE_POOL directly rather than to ALL_WORDS.
+// ALL_WORDS is entangled with however Stage mode currently happens to carve
+// its 1400 words out of the pool (arc count, level counts, pacing) -- none
+// of which should ever change what a given calendar date's puzzle is. Only a
+// change to the underlying word list, isAllowedWordEntry, or the difficulty
+// model itself can shift a daily now.
+// The 75 cap matches the "harder" band's upper bound in dailyWordsForDate
+// below, so the fifth daily word can actually reach that band instead of
+// being silently truncated to whatever's left under a lower ceiling.
+const DAILY_WORDS = CANDIDATE_POOL
+  .filter(entry => entry.difficulty <= 75)
+  .map(entry => [entry.word, entry.clue, entry.difficulty]);
 
 function shuffleArray(arr) {
   const out = arr.slice();
@@ -412,13 +421,14 @@ function seededRandom(seed) {
   };
 }
 
-// The date's seed picks a stable index into each band, but the bands
-// themselves are just live filters over DAILY_WORDS/ALL_WORDS — so any future
-// change to the word bank or difficulty model reshuffles which words a given
-// date produces. Fine at this scale, but it means daily results aren't
-// reproducible across a content deploy, and two players on the same date but
-// different app versions won't necessarily get the same puzzle. A real fix
-// would hash the word list (or pin a versioned snapshot) into the seed.
+// The date's seed picks a stable index into each band, and DAILY_WORDS is
+// pinned to CANDIDATE_POOL so Stage mode's arc/level structure can change
+// freely without touching this. The remaining coupling: editing the raw word
+// list (supplemental_words.js), isAllowedWordEntry, or computeWordDifficulty
+// still shifts which words a given date produces, since the bands are live
+// filters over those. Two players on the same date will only ever see
+// different puzzles if they're running code from before/after one of those
+// specific changes.
 function dailyWordsForDate(dateKey) {
   const random = seededRandom(seedFromString(dateKey));
   const easy = DAILY_WORDS.filter(([, , difficulty]) => difficulty <= 30);
