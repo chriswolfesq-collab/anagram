@@ -18,7 +18,7 @@ function applyTap(scrambled, slots, tileId) {
   return { scrambled: newScrambled, slots: newSlots, filled, word };
 }
 
-const STORAGE_KEY = 'anagram_wordgame_progress_v2';
+const STORAGE_KEY = 'anagram_wordgame_progress_v3';
 const ARCADE_BEST_KEY = 'anagram_wordgame_arcade_best_v1';
 const SURVIVAL_BEST_KEY = 'anagram_wordgame_survival_best_v1';
 const DAILY_RESULT_KEY = 'anagram_wordgame_daily_result_v1';

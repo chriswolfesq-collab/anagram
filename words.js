@@ -1,4 +1,6 @@
-const MAX_WORD_LENGTH = 8;
+// Words up to 12 letters are allowed. The supplemental bank tops out at 10
+// letters; a handful of the hand-curated words below run up to 12.
+const MAX_WORD_LENGTH = 12;
 
 const PROPER_NOUN_CLUE_PATTERNS = [
   /\b(?:United States|U\.S\.|American|English|British|French|German|Italian|Spanish|Russian|Chinese|Japanese|Indian|Irish|Scottish|Welsh|Dutch|Greek|Roman|Belgian|Canadian|Australian|African|European|Asian|Louisianian|Acadian|Cajun|Flemish)\b/i,
@@ -17,10 +19,9 @@ function isAllowedWordEntry(entry, maxLen = MAX_WORD_LENGTH) {
   return !PROPER_NOUN_CLUE_PATTERNS.some(pattern => pattern.test(entry.clue));
 }
 
-// Word pools for the 44 generated stages that fill in between the 6
-// hand-authored anchor stages. Grouped by difficulty band so level count
-// per stage climbs smoothly (never drops) across all 50 stages.
-
+// Hand-picked seed words, folded into the difficulty-sorted candidate pool
+// below alongside the supplemental bank. Kept here (rather than generated)
+// because their clues are better-written than frequency-derived ones.
 const POOL_5_6 = [
   ['WATER', 'H2O in liquid form'], ['HOUSE', 'Place where you live'], ['MUSIC', 'Art of organized sound'],
   ['BREAD', 'Baked staple food'], ['CLOUD', 'Fluffy shape in the sky'], ['RIVER', 'Flowing body of fresh water'],
@@ -109,130 +110,16 @@ const POOL_10_12 = [
   ['ORGANIZATION', 'Structured group with a purpose'], ['PARTICIPANT', 'Person taking part in something'],
 ];
 
-const BAND1_NAMES = ['First Steps', 'Getting Started', 'Easy Does It', 'Quick Words', 'Word Starter', 'Simple Words', 'Basic Training', 'Word Rookie', 'Rookie Finale'];
-const BAND2_NAMES = ['Gaining Momentum', 'Word Runner', 'Speed Round', 'Quick Thinker', 'Fast Track', 'Word Sprinter', 'Rapid Fire', 'Swift Solver', 'Speed Finale'];
-const BAND3_NAMES = ['Word Wizard', 'Vocabulary Vault', 'Letter Craft', 'Word Architect', 'Wordsmith', 'Language Lab', 'Syntax Sprint', 'Lexicon Leap', 'Master Finale'];
-const BAND4_NAMES = ['Brain Teaser', 'Mind Bender', 'Cerebral Challenge', "Thinker's Trial", 'Puzzle Master', 'Riddle Range', 'Logic Loop', 'Puzzle Prodigy', 'Pro Finale'];
-const BAND5_NAMES = ['Expert Zone', 'Advanced Play', 'High Stakes', 'Elite Words', 'Pro League', 'Championship', 'Word Warrior', 'Vanguard'];
-
-function chunk(arr, size) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
-
-// Time budget shrinks as the global stage index climbs and grows slightly
-// for longer words, mirroring the hand-tuned pacing of the anchor stages.
-function levelTime(word, stageIndex) {
-  const t = 46 - stageIndex * 0.55 - (word.length - 5);
-  return Math.max(10, Math.round(t));
-}
-
-function buildLevels(pairs, stageIndex) {
-  return pairs.map(([word, clue]) => ({ word, clue, time: levelTime(word, stageIndex) }));
-}
-
-const band1New = chunk(POOL_5_6, 3);
-const band2New = chunk(POOL_7, 4);
-const band3New = chunk(POOL_8_9, 5);
-const band4New = chunk(POOL_9_11, 6);
-const band5New = chunk(POOL_10_12, 7);
-
-const STAGES = [
-  {
-    name: 'Warm Up',
-    levels: [
-      { word: 'OCEAN', clue: 'Vast saltwater body', time: 45 },
-      { word: 'GARDEN', clue: 'Where flowers bloom', time: 40 },
-      { word: 'PLANET', clue: 'Earth is one', time: 40 },
-    ],
-  },
-  ...band1New.map((pairs, i) => ({ name: BAND1_NAMES[i], levels: buildLevels(pairs, 1 + i) })),
-  {
-    name: 'Picking Up Speed',
-    levels: [
-      { word: 'WHISPER', clue: 'Speak very softly', time: 35 },
-      { word: 'JOURNEY', clue: 'A long trip', time: 35 },
-      { word: 'MYSTERY', clue: 'Unsolved puzzle', time: 33 },
-      { word: 'BALANCE', clue: 'Steady equilibrium', time: 32 },
-    ],
-  },
-  ...band2New.map((pairs, i) => ({ name: BAND2_NAMES[i], levels: buildLevels(pairs, 11 + i) })),
-  {
-    name: 'Word Master',
-    levels: [
-      { word: 'SYMPHONY', clue: 'Orchestral piece', time: 30 },
-      { word: 'ADVENTURE', clue: 'Exciting undertaking', time: 28 },
-      { word: 'CROSSWORD', clue: 'A grid puzzle like this one', time: 28 },
-      { word: 'ELEPHANT', clue: 'Large trunked mammal', time: 26 },
-      { word: 'CHOCOLATE', clue: 'Sweet treat from cacao', time: 26 },
-    ],
-  },
-  ...band3New.map((pairs, i) => ({ name: BAND3_NAMES[i], levels: buildLevels(pairs, 21 + i) })),
-  {
-    name: 'Puzzle Pro',
-    levels: [
-      { word: 'KEYBOARD', clue: 'Typing device', time: 24 },
-      { word: 'KANGAROO', clue: 'Hopping Australian marsupial', time: 24 },
-      { word: 'MOUNTAIN', clue: 'Large natural elevation', time: 23 },
-      { word: 'BUTTERFLY', clue: 'Insect with colorful wings', time: 22 },
-      { word: 'KNOWLEDGE', clue: 'Information and understanding', time: 22 },
-      { word: 'KINDNESS', clue: 'Quality of being generous', time: 20 },
-    ],
-  },
-  ...band4New.map((pairs, i) => ({ name: BAND4_NAMES[i], levels: buildLevels(pairs, 31 + i) })),
-  ...band5New.map((pairs, i) => ({ name: BAND5_NAMES[i], levels: buildLevels(pairs, 40 + i) })),
-  {
-    name: 'Expert',
-    levels: [
-      { word: 'FANTASTIC', clue: 'Extremely good', time: 22 },
-      { word: 'INSTRUMENT', clue: 'Tool for making music', time: 20 },
-      { word: 'TELEVISION', clue: 'Screen device for broadcasts', time: 20 },
-      { word: 'UNIVERSITY', clue: 'Higher education institution', time: 19 },
-      { word: 'GENERATION', clue: 'People born around the same time', time: 18 },
-      { word: 'IMAGINATION', clue: 'Ability to form mental images', time: 18 },
-      { word: 'CELEBRATION', clue: 'Festive event marking an occasion', time: 17 },
-      { word: 'HOSPITALITY', clue: 'Friendly treatment of guests', time: 16 },
-    ],
-  },
-  {
-    name: 'Grandmaster',
-    levels: [
-      { word: 'ATMOSPHERE', clue: 'Layer of gases around a planet', time: 18 },
-      { word: 'PHOTOGRAPHY', clue: 'Art of capturing images with light', time: 17 },
-      { word: 'ENVIRONMENT', clue: 'Natural surroundings', time: 17 },
-      { word: 'OPPORTUNITY', clue: 'Favorable chance', time: 16 },
-      { word: 'INSPIRATION', clue: 'Stimulus for creative ideas', time: 16 },
-      { word: 'CONVERSATION', clue: 'Talk between people', time: 15 },
-      { word: 'ARCHITECTURE', clue: 'Art of designing buildings', time: 15 },
-      { word: 'INDEPENDENCE', clue: 'Freedom from control', time: 14 },
-      { word: 'ENTREPRENEUR', clue: 'Business founder who takes risks', time: 14 },
-      { word: 'CIVILIZATION', clue: 'Complex organized society', time: 13 },
-    ],
-  },
+// The original 6 hand-authored "anchor" stages' words, now folded into the
+// general candidate pool below rather than pinned to fixed stage slots.
+const ANCHOR_PAIRS = [
+  ['OCEAN', 'Vast saltwater body'], ['GARDEN', 'Where flowers bloom'], ['PLANET', 'Earth is one'],
+  ['WHISPER', 'Speak very softly'], ['JOURNEY', 'A long trip'], ['MYSTERY', 'Unsolved puzzle'], ['BALANCE', 'Steady equilibrium'],
+  ['SYMPHONY', 'Orchestral piece'], ['ADVENTURE', 'Exciting undertaking'], ['CROSSWORD', 'A grid puzzle like this one'], ['ELEPHANT', 'Large trunked mammal'], ['CHOCOLATE', 'Sweet treat from cacao'],
+  ['KEYBOARD', 'Typing device'], ['KANGAROO', 'Hopping Australian marsupial'], ['MOUNTAIN', 'Large natural elevation'], ['BUTTERFLY', 'Insect with colorful wings'], ['KNOWLEDGE', 'Information and understanding'], ['KINDNESS', 'Quality of being generous'],
+  ['FANTASTIC', 'Extremely good'], ['INSTRUMENT', 'Tool for making music'], ['TELEVISION', 'Screen device for broadcasts'], ['UNIVERSITY', 'Higher education institution'], ['GENERATION', 'People born around the same time'], ['IMAGINATION', 'Ability to form mental images'], ['CELEBRATION', 'Festive event marking an occasion'], ['HOSPITALITY', 'Friendly treatment of guests'],
+  ['ATMOSPHERE', 'Layer of gases around a planet'], ['PHOTOGRAPHY', 'Art of capturing images with light'], ['ENVIRONMENT', 'Natural surroundings'], ['OPPORTUNITY', 'Favorable chance'], ['INSPIRATION', 'Stimulus for creative ideas'], ['CONVERSATION', 'Talk between people'], ['ARCHITECTURE', 'Art of designing buildings'], ['INDEPENDENCE', 'Freedom from control'], ['ENTREPRENEUR', 'Business founder who takes risks'], ['CIVILIZATION', 'Complex organized society'],
 ];
-
-function enforceWordRules(maxLen) {
-  const used = new Set(STAGES.flatMap(s => s.levels.filter(l => isAllowedWordEntry(l, maxLen)).map(l => l.word)));
-  const replacements = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
-    .filter(entry => isAllowedWordEntry(entry, maxLen) && !used.has(entry.word));
-  let replacementIndex = 0;
-  STAGES.forEach((stage, stageIdx) => {
-    stage.levels = stage.levels.map(level => {
-      if (isAllowedWordEntry(level, maxLen)) return level;
-      const replacement = replacements[replacementIndex++];
-      if (!replacement) return null;
-      used.add(replacement.word);
-      return {
-        word: replacement.word,
-        clue: replacement.clue,
-        time: Math.max(10, Math.min(level.time, levelTime(replacement.word, stageIdx))),
-      };
-    }).filter(Boolean);
-  });
-}
-
-enforceWordRules(MAX_WORD_LENGTH);
 
 // --- Word difficulty model ---
 // A word's difficulty is a blend of five signals, not just its length:
@@ -342,24 +229,90 @@ function computeWordDifficulty(word) {
   );
 }
 
-// Re-rank the curated stage words with the full difficulty model so the
-// 50-stage progression climbs by real difficulty, not just word length.
-// Each level's time budget is recomputed from its *final* stage position
-// (not the position it happened to start at) so the countdown a player sees
-// always matches how hard the word turned out to be once the whole
-// progression is sorted.
-(function sortStagesByDifficulty() {
-  const allLevels = STAGES.flatMap(s => s.levels);
-  allLevels.forEach(l => { l.difficulty = computeWordDifficulty(l.word); });
-  allLevels.sort((a, b) => a.difficulty - b.difficulty);
-  let i = 0;
-  STAGES.forEach((stage, stageIdx) => {
-    stage.levels = stage.levels.map(() => {
-      const level = allLevels[i++];
-      return { ...level, time: levelTime(level.word, stageIdx) };
+// --- Stage progression ---
+// 200 stages, grouped into 5 "arcs" of 40 stages each. Every arc has its own
+// naming theme (adjective x noun combinations, ending in a themed "Finale"
+// stage) and a fixed level count that only ever climbs arc-to-arc, so the
+// player is never handed a shorter stage than the one before it.
+const STAGE_ARCS = [
+  { title: 'Rookie', adjectives: ['First', 'Easy', 'Simple', 'Quick', 'Basic', 'Gentle', 'Fresh', 'Bright'], nouns: ['Steps', 'Start', 'Words', 'Round', 'Path'] },
+  { title: 'Speed', adjectives: ['Swift', 'Rapid', 'Speedy', 'Nimble', 'Brisk', 'Zippy', 'Snappy', 'Agile'], nouns: ['Runner', 'Sprint', 'Dash', 'Chase', 'Rally'] },
+  { title: 'Word', adjectives: ['Clever', 'Crafty', 'Sharp', 'Witty', 'Skilled', 'Deft', 'Keen', 'Astute'], nouns: ['Wordsmith', 'Lexicon', 'Wordplay', 'Vocabulary', 'Language'] },
+  { title: 'Puzzle', adjectives: ['Bold', 'Tricky', 'Puzzling', 'Complex', 'Cerebral', 'Intense', 'Fierce', 'Daring'], nouns: ['Challenge', 'Riddle', 'Puzzle', 'Trial', 'Gauntlet'] },
+  { title: 'Grandmaster', adjectives: ['Elite', 'Master', 'Expert', 'Legendary', 'Supreme', 'Ultimate', 'Peerless', 'Storied'], nouns: ['League', 'Summit', 'Pinnacle', 'Vanguard', 'Champion'] },
+];
+
+const STAGES_PER_ARC = 40;
+
+function levelsForArc(arcIndex) {
+  return 5 + arcIndex; // 5, 6, 7, 8, 9 across the 5 arcs
+}
+
+function buildArcStageNames(arc) {
+  const names = [];
+  arc.adjectives.forEach(adjective => {
+    arc.nouns.forEach(noun => names.push(`${adjective} ${noun}`));
+  });
+  names[names.length - 1] = `${arc.title} Finale`;
+  return names;
+}
+
+function buildCandidatePool() {
+  const seen = new Set();
+  const candidates = [];
+  [POOL_5_6, POOL_7, POOL_8_9, POOL_9_11, POOL_10_12, ANCHOR_PAIRS].forEach(pairs => {
+    pairs.forEach(([word, clue]) => {
+      if (seen.has(word)) return;
+      const entry = { word, clue };
+      if (!isAllowedWordEntry(entry, MAX_WORD_LENGTH)) return;
+      seen.add(word);
+      candidates.push(entry);
     });
   });
-})();
+  (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS).forEach(entry => {
+    if (seen.has(entry.word)) return;
+    if (!isAllowedWordEntry(entry, MAX_WORD_LENGTH)) return;
+    seen.add(entry.word);
+    candidates.push({ word: entry.word, clue: entry.clue });
+  });
+  candidates.forEach(c => { c.difficulty = computeWordDifficulty(c.word); });
+  candidates.sort((a, b) => a.difficulty - b.difficulty);
+  return candidates;
+}
+
+function buildStages() {
+  const candidates = buildCandidatePool();
+  const totalNeeded = STAGE_ARCS.reduce((sum, _, arcIndex) => sum + levelsForArc(arcIndex) * STAGES_PER_ARC, 0);
+
+  // Sample evenly by rank (not raw score) across the whole sorted pool, so
+  // stage 1 gets genuinely the easiest words and the final stage genuinely
+  // the hardest, with a smooth difficulty climb in between.
+  const stride = (candidates.length - 1) / (totalNeeded - 1);
+  const picked = [];
+  for (let i = 0; i < totalNeeded; i++) {
+    picked.push(candidates[Math.round(i * stride)]);
+  }
+
+  const stages = [];
+  let cursor = 0;
+  STAGE_ARCS.forEach((arc, arcIndex) => {
+    const names = buildArcStageNames(arc);
+    const levelCount = levelsForArc(arcIndex);
+    for (let s = 0; s < STAGES_PER_ARC; s++) {
+      const levels = picked.slice(cursor, cursor + levelCount).map(entry => ({
+        word: entry.word,
+        clue: entry.clue,
+        difficulty: entry.difficulty,
+      }));
+      cursor += levelCount;
+      stages.push({ name: names[s], levels });
+    }
+  });
+  stages[0].name = 'Warm Up';
+  return stages;
+}
+
+const STAGES = buildStages();
 
 // Stages stay curated; Timed and Daily 5 draw from this larger bank so repeat
 // words are much less common.
