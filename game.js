@@ -3,6 +3,17 @@ const CONFIG = {
   tileShape: 'square', // 'square' | 'circle'
 };
 
+const ARCADE_TIME = 30;
+const SURVIVAL_START_TIME = 30;
+const SURVIVAL_MAX_TIME = 60;
+const SURVIVAL_TIME_BONUS = 8;
+const SURVIVAL_SKIP_PENALTY = 3;
+const SURVIVAL_BASE_POINTS = 100;
+const SURVIVAL_STREAK_BONUS_STEP = 25;
+const SURVIVAL_FAST_SOLVE_SECONDS = 3;
+const SURVIVAL_FAST_SOLVE_BONUS = 50;
+const SURVIVAL_NO_SKIP_BONUS = 250;
+
 // Pure helper shared by both modes: places a tapped tile into the next open
 // slot and reports whether the word is complete (and what it spells).
 function applyTap(scrambled, slots, tileId) {

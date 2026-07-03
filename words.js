@@ -235,10 +235,10 @@ function computeWordDifficulty(word) {
 // stage) and a fixed level count that only ever climbs arc-to-arc, so the
 // player is never handed a shorter stage than the one before it.
 const STAGE_ARCS = [
-  { title: 'Rookie', adjectives: ['First', 'Easy', 'Simple', 'Quick', 'Basic', 'Gentle', 'Fresh', 'Bright'], nouns: ['Steps', 'Start', 'Words', 'Round', 'Path'] },
+  { title: 'Rookie', adjectives: ['First', 'Easy', 'Simple', 'Quick', 'Basic', 'Gentle', 'Fresh', 'Bright'], nouns: ['Steps', 'Trail', 'Words', 'Round', 'Path'] },
   { title: 'Speed', adjectives: ['Swift', 'Rapid', 'Speedy', 'Nimble', 'Brisk', 'Zippy', 'Snappy', 'Agile'], nouns: ['Runner', 'Sprint', 'Dash', 'Chase', 'Rally'] },
   { title: 'Word', adjectives: ['Clever', 'Crafty', 'Sharp', 'Witty', 'Skilled', 'Deft', 'Keen', 'Astute'], nouns: ['Wordsmith', 'Lexicon', 'Wordplay', 'Vocabulary', 'Language'] },
-  { title: 'Puzzle', adjectives: ['Bold', 'Tricky', 'Puzzling', 'Complex', 'Cerebral', 'Intense', 'Fierce', 'Daring'], nouns: ['Challenge', 'Riddle', 'Puzzle', 'Trial', 'Gauntlet'] },
+  { title: 'Puzzle', adjectives: ['Bold', 'Tricky', 'Puzzling', 'Complex', 'Cerebral', 'Intense', 'Fierce', 'Daring'], nouns: ['Challenge', 'Riddle', 'Enigma', 'Trial', 'Gauntlet'] },
   { title: 'Grandmaster', adjectives: ['Elite', 'Master', 'Expert', 'Legendary', 'Supreme', 'Ultimate', 'Peerless', 'Storied'], nouns: ['League', 'Summit', 'Pinnacle', 'Vanguard', 'Champion'] },
 ];
 
@@ -280,9 +280,11 @@ function buildCandidatePool() {
   return candidates;
 }
 
-function buildStages() {
-  const candidates = buildCandidatePool();
+function buildStages(candidates) {
   const totalNeeded = STAGE_ARCS.reduce((sum, _, arcIndex) => sum + levelsForArc(arcIndex) * STAGES_PER_ARC, 0);
+  if (candidates.length < totalNeeded) {
+    throw new Error(`Not enough eligible words to build ${STAGE_ARCS.length * STAGES_PER_ARC} stages: need ${totalNeeded}, have ${candidates.length}`);
+  }
 
   // Sample evenly by rank (not raw score) across the whole sorted pool, so
   // stage 1 gets genuinely the easiest words and the final stage genuinely
@@ -312,27 +314,25 @@ function buildStages() {
   return stages;
 }
 
-const STAGES = buildStages();
+// Built once and shared: STAGES draws its 1400 words from here, and the
+// remainder (already filtered and scored) becomes the extra pool for Timed,
+// Survival, and Daily 5, so every word only ever runs through
+// isAllowedWordEntry/computeWordDifficulty a single time.
+const CANDIDATE_POOL = buildCandidatePool();
+const STAGES = buildStages(CANDIDATE_POOL);
 
 // Stages stay curated; Timed and Daily 5 draw from this larger bank so repeat
 // words are much less common.
 const STAGE_WORDS = STAGES.flatMap(s => s.levels.map(l => [l.word, l.clue, l.difficulty]));
 const STAGE_WORD_SET = new Set(STAGE_WORDS.map(([word]) => word));
-const SUPPLEMENTAL_WORD_PAIRS = (typeof SUPPLEMENTAL_WORDS === 'undefined' ? [] : SUPPLEMENTAL_WORDS)
-  .filter(entry => isAllowedWordEntry(entry) && !STAGE_WORD_SET.has(entry.word))
-  .map(entry => [entry.word, entry.clue, computeWordDifficulty(entry.word)]);
+const SUPPLEMENTAL_WORD_PAIRS = CANDIDATE_POOL
+  .filter(entry => !STAGE_WORD_SET.has(entry.word))
+  .map(entry => [entry.word, entry.clue, entry.difficulty]);
 const ALL_WORDS = STAGE_WORDS.concat(SUPPLEMENTAL_WORD_PAIRS);
-const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 65);
-const ARCADE_TIME = 30;
-const SURVIVAL_START_TIME = 30;
-const SURVIVAL_MAX_TIME = 60;
-const SURVIVAL_TIME_BONUS = 8;
-const SURVIVAL_SKIP_PENALTY = 3;
-const SURVIVAL_BASE_POINTS = 100;
-const SURVIVAL_STREAK_BONUS_STEP = 25;
-const SURVIVAL_FAST_SOLVE_SECONDS = 3;
-const SURVIVAL_FAST_SOLVE_BONUS = 50;
-const SURVIVAL_NO_SKIP_BONUS = 250;
+// Cap matches the "harder" band's upper bound in dailyWordsForDate below, so
+// the fifth daily word can actually reach that band instead of being
+// silently truncated to whatever's left under a lower ceiling.
+const DAILY_WORDS = ALL_WORDS.filter(([, , difficulty]) => difficulty <= 75);
 
 function shuffleArray(arr) {
   const out = arr.slice();
@@ -412,6 +412,13 @@ function seededRandom(seed) {
   };
 }
 
+// The date's seed picks a stable index into each band, but the bands
+// themselves are just live filters over DAILY_WORDS/ALL_WORDS — so any future
+// change to the word bank or difficulty model reshuffles which words a given
+// date produces. Fine at this scale, but it means daily results aren't
+// reproducible across a content deploy, and two players on the same date but
+// different app versions won't necessarily get the same puzzle. A real fix
+// would hash the word list (or pin a versioned snapshot) into the seed.
 function dailyWordsForDate(dateKey) {
   const random = seededRandom(seedFromString(dateKey));
   const easy = DAILY_WORDS.filter(([, , difficulty]) => difficulty <= 30);
