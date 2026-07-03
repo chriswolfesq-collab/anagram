@@ -22,7 +22,11 @@ const game = new Game(state => {
   // treat it as user-initiated and pop the keyboard without a second tap.
   if (PLAY_SCREENS.includes(state.screen)) {
     kbInput.value = '';
-    kbInput.focus();
+    // Re-focusing an already-focused input is a no-op per spec, but on iOS
+    // Safari it can still nudge the visual viewport, so skip it on renders
+    // that aren't the initial entry into the play screen (e.g. a per-second
+    // countdown tick).
+    if (document.activeElement !== kbInput) kbInput.focus();
     requestAnimationFrame(syncVisibleViewportHeight);
   } else {
     kbInput.blur();

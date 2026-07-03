@@ -4,6 +4,8 @@ function el(tag, opts = {}, children = []) {
   if (opts.text !== undefined) node.textContent = opts.text;
   if (opts.html !== undefined) node.innerHTML = opts.html;
   if (opts['aria-label']) node.setAttribute('aria-label', opts['aria-label']);
+  if (tag === 'button' && !opts.type) node.type = 'button';
+  if (opts.disabled) node.disabled = true;
   if (opts.style) Object.assign(node.style, opts.style);
   if (opts.onClick) node.addEventListener('click', opts.onClick);
   children.forEach(c => c && node.appendChild(c));
@@ -94,7 +96,7 @@ function renderStages(state, game) {
     const completed = stageProgress[i] >= s.levels.length;
     const pct = unlocked ? Math.round((stageProgress[i] / s.levels.length) * 100) : 0;
 
-    const card = el('div', {
+    const card = el('button', {
       className: 'stage-card',
       style: {
         borderColor: completed ? 'rgba(16, 185, 129, 0.35)' : unlocked ? 'rgba(255,255,255,0.72)' : 'rgba(148, 163, 184, 0.24)',
@@ -102,15 +104,17 @@ function renderStages(state, game) {
         opacity: unlocked ? 1 : 0.65,
         cursor: unlocked ? 'pointer' : 'default',
       },
+      disabled: !unlocked,
+      'aria-label': unlocked ? `Stage ${i + 1}: ${s.name}` : `Stage ${i + 1}: ${s.name} (locked)`,
       onClick: unlocked ? () => game.openStage(i) : null,
     }, [
       el('div', { className: 'stage-card-top' }, [
-        el('div', { className: 'stage-card-label', style: { color: unlocked ? '#697586' : '#94A3B8' }, text: 'STAGE ' + (i + 1) }),
-        el('div', { className: 'stage-card-right', style: { color: completed ? '#047857' : unlocked ? '#4F46E5' : '#94A3B8' }, text: completed ? 'DONE' : unlocked ? 'PLAY' : 'LOCKED' }),
+        el('div', { className: 'stage-card-label', style: { color: unlocked ? 'var(--muted)' : 'var(--soft)' }, text: 'STAGE ' + (i + 1) }),
+        el('div', { className: 'stage-card-right', style: { color: completed ? 'var(--accent-dark)' : unlocked ? 'var(--blue)' : 'var(--soft)' }, text: completed ? 'DONE' : unlocked ? 'PLAY' : 'LOCKED' }),
       ]),
-      el('div', { className: 'stage-card-name', style: { color: unlocked ? '#16202A' : '#94A3B8' }, text: s.name }),
+      el('div', { className: 'stage-card-name', style: { color: unlocked ? 'var(--ink)' : 'var(--soft)' }, text: s.name }),
       el('div', { className: 'progress-track' }, [
-        el('div', { className: 'progress-fill', style: { width: pct + '%', background: completed ? CONFIG.accentColor : 'linear-gradient(90deg, #4F46E5, #10B981)' } }),
+        el('div', { className: 'progress-fill', style: { width: pct + '%', background: completed ? CONFIG.accentColor : 'linear-gradient(90deg, var(--blue), var(--accent))' } }),
       ]),
       el('div', { className: 'stage-card-progress', text: unlocked ? `${stageProgress[i]} / ${s.levels.length} levels solved` : 'Complete the previous stage' }),
     ]);
@@ -119,7 +123,7 @@ function renderStages(state, game) {
 
   return el('div', { className: 'screen' }, [
     el('div', { className: 'screen-header' }, [
-      el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
+      el('button', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
       el('div', { className: 'app-title', text: 'ANAGRAM' }),
       el('div', { className: 'app-subtitle', text: `${totalSolved} of ${totalLevels} words solved` }),
     ]),
@@ -136,30 +140,32 @@ function renderLevels(state, game) {
     const isUnlockedNow = i <= stageProgress[activeStage];
     const isFrontier = i === stageProgress[activeStage];
 
-    return el('div', {
+    return el('button', {
       className: 'level-row',
       style: {
         opacity: isUnlockedNow ? 1 : 0.7,
         cursor: isUnlockedNow ? 'pointer' : 'default',
       },
+      disabled: !isUnlockedNow,
+      'aria-label': isUnlockedNow ? `Level ${i + 1}: ${l.clue}` : `Level ${i + 1} (locked)`,
       onClick: isUnlockedNow ? () => game.startLevel(activeStage, i) : null,
     }, [
       el('div', {
         className: 'level-badge',
         style: {
-          background: isCompleted ? CONFIG.accentColor : isFrontier ? 'linear-gradient(145deg, #4F46E5, #111827)' : '#FFFFFF',
-          color: isCompleted || isFrontier ? '#FFFFFF' : '#94A3B8',
+          background: isCompleted ? CONFIG.accentColor : isFrontier ? 'linear-gradient(145deg, var(--blue), #111827)' : 'var(--surface-strong)',
+          color: isCompleted || isFrontier ? 'var(--surface-strong)' : 'var(--soft)',
           border: isUnlockedNow ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(148, 163, 184, 0.24)',
         },
         text: isCompleted ? '✓' : String(i + 1),
       }),
       el('div', { className: 'level-info' }, [
-        el('div', { className: 'level-clue', style: { color: isUnlockedNow ? '#16202A' : '#94A3B8' }, text: isUnlockedNow ? l.clue : 'Locked' }),
+        el('div', { className: 'level-clue', style: { color: isUnlockedNow ? 'var(--ink)' : 'var(--soft)' }, text: isUnlockedNow ? l.clue : 'Locked' }),
         el('div', { className: 'level-meta', text: isUnlockedNow ? `${l.word.length} letters` : 'Complete the previous level' }),
       ]),
       el('div', {
         className: 'level-right',
-        style: { color: isCompleted ? '#047857' : isFrontier ? '#4F46E5' : '#94A3B8' },
+        style: { color: isCompleted ? 'var(--accent-dark)' : isFrontier ? 'var(--blue)' : 'var(--soft)' },
         text: isCompleted ? 'DONE' : isFrontier ? 'PLAY' : 'LOCKED',
       }),
     ]);
@@ -167,7 +173,7 @@ function renderLevels(state, game) {
 
   return el('div', { className: 'screen' }, [
     el('div', { className: 'screen-header' }, [
-      el('div', { className: 'back-link', text: '‹ Stages', onClick: () => game.goToStages() }),
+      el('button', { className: 'back-link', text: '‹ Stages', onClick: () => game.goToStages() }),
       el('div', { className: 'screen-title', text: stage.name }),
       el('div', { className: 'app-subtitle', text: `${stageProgress[activeStage]} of ${stage.levels.length} solved` }),
     ]),
@@ -185,7 +191,7 @@ function renderPlay(state, game) {
   const isLastStage = activeStage + 1 >= STAGES.length;
 
   const header = el('div', { className: 'play-header' }, [
-    el('div', { className: 'back-link', text: '‹ ' + stage.name, onClick: () => game.goToLevels() }),
+    el('button', { className: 'back-link', text: '‹ ' + stage.name, onClick: () => game.goToLevels() }),
     el('div', { className: 'play-level-label', text: `LEVEL ${levelIndex + 1} / ${stage.levels.length}` }),
   ]);
 
@@ -245,10 +251,10 @@ function renderArcadePlay(state, game) {
   const solved = status === 'success';
 
   const timerPct = Math.max(0, Math.round((arcadeTimeLeft / ARCADE_TIME) * 100));
-  const timerColor = timerPct <= 25 ? '#F43F5E' : timerPct <= 55 ? '#F59E0B' : '#10B981';
+  const timerColor = timerPct <= 25 ? 'var(--danger)' : timerPct <= 55 ? 'var(--gold)' : 'var(--accent)';
 
   const header = el('div', { className: 'play-header' }, [
-    el('div', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitArcade() }),
+    el('button', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitArcade() }),
     el('div', { className: 'play-level-label', text: `SCORE ${arcadeScore}` }),
     el('div', { className: 'play-timer', style: { color: timerColor }, text: arcadeTimeLeft + 's' }),
   ]);
@@ -301,10 +307,10 @@ function renderSurvivalPlay(state, game) {
   const nextStreakBonus = (nextStreakMilestone / 5) * SURVIVAL_STREAK_BONUS_STEP;
 
   const timerPct = Math.max(0, Math.round((survivalTimeLeft / SURVIVAL_MAX_TIME) * 100));
-  const timerColor = timerPct <= 25 ? '#F43F5E' : timerPct <= 55 ? '#F59E0B' : '#10B981';
+  const timerColor = timerPct <= 25 ? 'var(--danger)' : timerPct <= 55 ? 'var(--gold)' : 'var(--accent)';
 
   const header = el('div', { className: 'play-header' }, [
-    el('div', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitSurvival() }),
+    el('button', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitSurvival() }),
     el('div', { className: 'play-level-label', text: `SCORE ${survivalScore}` }),
     el('div', { className: 'play-timer', style: { color: timerColor }, text: survivalTimeLeft + 's' }),
   ]);
@@ -368,7 +374,7 @@ function renderDailyPlay(state, game) {
   const solved = status === 'success';
 
   const header = el('div', { className: 'play-header' }, [
-    el('div', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitDaily() }),
+    el('button', { className: 'back-link', text: '‹ Exit', onClick: () => game.exitDaily() }),
     el('div', { className: 'play-level-label', text: `DAILY ${dailyIndex + 1} / ${DAILY_COUNT}` }),
     el('div', { className: 'play-timer', text: formatDuration(dailyElapsed) }),
   ]);
@@ -424,7 +430,7 @@ function renderArcadeOver(state, game) {
     el('button', { className: 'btn-primary inline', text: 'Share Score', style: { marginBottom: '12px' }, onClick: () => game.shareArcade() }),
     state.arcadeShareStatus ? el('div', { className: 'share-status', text: state.arcadeShareStatus }) : null,
     el('button', { className: 'btn-primary inline', text: 'Play Again', style: { marginBottom: '12px' }, onClick: () => game.startArcade() }),
-    el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
+    el('button', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
   ]);
 }
 
@@ -440,7 +446,7 @@ function renderSurvivalOver(state, game) {
     el('button', { className: 'btn-primary inline', text: 'Share Score', style: { marginBottom: '12px' }, onClick: () => game.shareSurvival() }),
     state.survivalShareStatus ? el('div', { className: 'share-status', text: state.survivalShareStatus }) : null,
     el('button', { className: 'btn-primary inline', text: 'Play Again', style: { marginBottom: '12px' }, onClick: () => game.startSurvival() }),
-    el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
+    el('button', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
   ]);
 }
 
@@ -453,7 +459,7 @@ function renderDailyDone(state, game) {
     el('div', { className: 'center-desc', text: 'Share your time and come back tomorrow for a new set.' }),
     el('button', { className: 'btn-primary inline', text: 'Share Time', style: { marginBottom: '12px' }, onClick: () => game.shareDaily() }),
     state.dailyShareStatus ? el('div', { className: 'share-status', text: state.dailyShareStatus }) : null,
-    el('div', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
+    el('button', { className: 'back-link', text: '‹ Modes', onClick: () => game.goHome() }),
   ]);
 }
 
@@ -481,6 +487,12 @@ function renderDone(state, game) {
 
 function render(state, game) {
   const app = document.getElementById('app');
+  // render() replaces the whole subtree on every state change, which would
+  // otherwise reset scroll position inside .play-body (e.g. mid-puzzle,
+  // with the mobile keyboard open) on every tick of a screen's countdown
+  // timer, not just on taps that actually change what's visible.
+  const prevScroller = app.querySelector('.play-body');
+  const prevScrollTop = prevScroller ? prevScroller.scrollTop : 0;
   app.innerHTML = '';
   let node;
   switch (state.screen) {
@@ -498,4 +510,8 @@ function render(state, game) {
     case 'done': node = renderDone(state, game); break;
   }
   app.appendChild(node);
+  if (prevScrollTop) {
+    const nextScroller = app.querySelector('.play-body');
+    if (nextScroller) nextScroller.scrollTop = prevScrollTop;
+  }
 }
