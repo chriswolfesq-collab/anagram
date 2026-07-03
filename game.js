@@ -406,6 +406,39 @@ function buildArcadeQueue() {
   return queue;
 }
 
+const SURVIVAL_LENGTH_PATTERN = [
+  5, 6, 5, 6, 5,
+  7, 6, 5, 6, 7,
+  5, 6, 5, 6, 8,
+  6, 5, 6, 7, 6,
+];
+
+function buildSurvivalQueue() {
+  const pools = {
+    5: shuffleArray(ALL_WORDS.filter(([word]) => word.length === 5)),
+    6: shuffleArray(ALL_WORDS.filter(([word]) => word.length === 6)),
+    7: shuffleArray(ALL_WORDS.filter(([word]) => word.length === 7)),
+    8: shuffleArray(ALL_WORDS.filter(([word]) => word.length === 8)),
+  };
+  const fallbackByLength = {
+    5: [6, 7, 8],
+    6: [5, 7, 8],
+    7: [6, 5, 8],
+    8: [7, 6, 5],
+  };
+  const queue = [];
+  let i = 0;
+
+  while (Object.values(pools).some(pool => pool.length)) {
+    const preferred = SURVIVAL_LENGTH_PATTERN[i % SURVIVAL_LENGTH_PATTERN.length];
+    const key = [preferred, ...fallbackByLength[preferred]].find(length => pools[length].length);
+    if (!key) break;
+    queue.push(pools[key].pop());
+    i++;
+  }
+  return queue;
+}
+
 // Pure helper shared by both modes: places a tapped tile into the next open
 // slot and reports whether the word is complete (and what it spells).
 function applyTap(scrambled, slots, tileId) {
@@ -515,6 +548,16 @@ function dataUrlToFile(dataUrl, filename) {
   return new File([bytes], filename, { type: mime });
 }
 
+function fillFittedText(ctx, text, x, y, maxWidth, weight, maxSize, minSize, family) {
+  let size = maxSize;
+  do {
+    ctx.font = `${weight} ${size}px ${family}`;
+    if (ctx.measureText(text).width <= maxWidth || size <= minSize) break;
+    size -= 6;
+  } while (size > minSize);
+  ctx.fillText(text, x, y);
+}
+
 function makeScoreShareImage({ mode, score, scoreLabel, detail, bestLine, isNewBest }) {
   const canvas = document.createElement('canvas');
   canvas.width = 1080;
@@ -569,8 +612,7 @@ function makeScoreShareImage({ mode, score, scoreLabel, detail, bestLine, isNewB
   ctx.fillText(mode.toUpperCase(), 540, 405);
 
   ctx.fillStyle = '#16202A';
-  ctx.font = '700 210px "Space Mono", monospace';
-  ctx.fillText(String(score), 540, 650);
+  fillFittedText(ctx, String(score), 540, 650, 740, 700, 210, 74, '"Space Mono", monospace');
 
   ctx.fillStyle = '#697586';
   ctx.font = '700 48px Inter, Arial, sans-serif';
@@ -864,6 +906,33 @@ class Game {
     this.setState({ screen: 'home' });
   }
 
+  async shareImage({ text, file, statusKey }) {
+    const downloadAndCopy = async () => {
+      downloadShareImage(file);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {}
+      }
+      this.setState({ [statusKey]: 'Screenshot downloaded' });
+    };
+
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Anagram Score', text, files: [file] });
+        this.setState({ [statusKey]: 'Shared!' });
+      } else {
+        await downloadAndCopy();
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        this.setState({ [statusKey]: 'Share canceled' });
+      } else {
+        await downloadAndCopy();
+      }
+    }
+  }
+
   async shareArcade() {
     const text = `Timed Challenge: I solved ${this.state.arcadeScore} ${this.state.arcadeScore === 1 ? 'word' : 'words'} in Anagram`;
     const file = makeScoreShareImage({
@@ -874,30 +943,7 @@ class Game {
       bestLine: `Best: ${this.state.arcadeBest}`,
       isNewBest: this.state.arcadeScore >= this.state.arcadeBest && this.state.arcadeScore > 0,
     });
-    try {
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: 'Anagram Score', text, files: [file] });
-        this.setState({ arcadeShareStatus: 'Shared!' });
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        downloadShareImage(file);
-        await navigator.clipboard.writeText(text);
-        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
-      } else {
-        downloadShareImage(file);
-        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
-      }
-    } catch (e) {
-      if (e && e.name === 'AbortError') {
-        this.setState({ arcadeShareStatus: 'Share canceled' });
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        downloadShareImage(file);
-        await navigator.clipboard.writeText(text);
-        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
-      } else {
-        downloadShareImage(file);
-        this.setState({ arcadeShareStatus: 'Screenshot downloaded' });
-      }
-    }
+    await this.shareImage({ text, file, statusKey: 'arcadeShareStatus' });
   }
 
   // --- Survival mode ---
@@ -906,7 +952,7 @@ class Game {
     if (this.survivalTimerId) clearInterval(this.survivalTimerId);
     this.setState({
       screen: 'survivalPlay',
-      survivalQueue: buildArcadeQueue(),
+      survivalQueue: buildSurvivalQueue(),
       survivalScore: 0,
       survivalSolved: 0,
       survivalStreak: 0,
@@ -923,7 +969,7 @@ class Game {
 
   loadNextSurvivalWord() {
     let queue = this.state.survivalQueue;
-    if (queue.length === 0) queue = buildArcadeQueue();
+    if (queue.length === 0) queue = buildSurvivalQueue();
     const [word, clue] = queue[0];
     this.setState({
       survivalQueue: queue.slice(1),
@@ -974,48 +1020,22 @@ class Game {
       bestLine: `Best: ${this.state.survivalBest} pts`,
       isNewBest: this.state.survivalScore >= this.state.survivalBest && this.state.survivalScore > 0,
     });
-    try {
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: 'Anagram Score', text, files: [file] });
-        this.setState({ survivalShareStatus: 'Shared!' });
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        downloadShareImage(file);
-        await navigator.clipboard.writeText(text);
-        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
-      } else {
-        downloadShareImage(file);
-        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
-      }
-    } catch (e) {
-      if (e && e.name === 'AbortError') {
-        this.setState({ survivalShareStatus: 'Share canceled' });
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        downloadShareImage(file);
-        await navigator.clipboard.writeText(text);
-        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
-      } else {
-        downloadShareImage(file);
-        this.setState({ survivalShareStatus: 'Screenshot downloaded' });
-      }
-    }
+    await this.shareImage({ text, file, statusKey: 'survivalShareStatus' });
   }
 
   async shareStage() {
     const stage = STAGES[this.state.activeStage];
+    const levelCount = stage.levels.length;
     const text = `I cleared ${stage.name} in Anagram`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ text });
-        this.setState({ stageShareStatus: 'Shared!' });
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        this.setState({ stageShareStatus: 'Copied!' });
-      } else {
-        this.setState({ stageShareStatus: text });
-      }
-    } catch (e) {
-      this.setState({ stageShareStatus: 'Share canceled' });
-    }
+    const file = makeScoreShareImage({
+      mode: 'Stage Complete',
+      score: stage.name,
+      scoreLabel: 'stage cleared',
+      detail: `Stage ${this.state.activeStage + 1} / ${STAGES.length}`,
+      bestLine: `${levelCount} ${levelCount === 1 ? 'word' : 'words'} solved`,
+      isNewBest: false,
+    });
+    await this.shareImage({ text, file, statusKey: 'stageShareStatus' });
   }
 
   // --- Daily 5 mode ---
@@ -1095,19 +1115,15 @@ class Game {
     const elapsed = result ? result.elapsed : this.state.dailyElapsed;
     const date = result ? result.date : this.state.dailyDate;
     const text = `Daily 5 ${date}: ${formatDuration(elapsed)} in Anagram`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ text });
-        this.setState({ dailyShareStatus: 'Shared!' });
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        this.setState({ dailyShareStatus: 'Copied!' });
-      } else {
-        this.setState({ dailyShareStatus: text });
-      }
-    } catch (e) {
-      this.setState({ dailyShareStatus: 'Share canceled' });
-    }
+    const file = makeScoreShareImage({
+      mode: 'Daily 5',
+      score: formatDuration(elapsed),
+      scoreLabel: 'completion time',
+      detail: date,
+      bestLine: `${DAILY_COUNT} / ${DAILY_COUNT} words solved`,
+      isNewBest: false,
+    });
+    await this.shareImage({ text, file, statusKey: 'dailyShareStatus' });
   }
 
   tapScrambled(tileId) {
