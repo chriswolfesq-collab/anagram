@@ -647,6 +647,17 @@ function downloadShareImage(file) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function getGameShareUrl() {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  return url.href;
+}
+
+function withGameShareLink(text) {
+  return `${text}\nPlay Anagram: ${getGameShareUrl()}`;
+}
+
 class Game {
   constructor(onChange) {
     this.onChange = onChange;
@@ -934,7 +945,7 @@ class Game {
   }
 
   async shareArcade() {
-    const text = `Timed Challenge: I solved ${this.state.arcadeScore} ${this.state.arcadeScore === 1 ? 'word' : 'words'} in Anagram`;
+    const text = withGameShareLink(`Timed Challenge: I solved ${this.state.arcadeScore} ${this.state.arcadeScore === 1 ? 'word' : 'words'} in Anagram`);
     const file = makeScoreShareImage({
       mode: 'Timed Challenge',
       score: this.state.arcadeScore,
@@ -1011,7 +1022,7 @@ class Game {
   }
 
   async shareSurvival() {
-    const text = `Survival: I scored ${this.state.survivalScore} points in Anagram`;
+    const text = withGameShareLink(`Survival: I scored ${this.state.survivalScore} points in Anagram`);
     const file = makeScoreShareImage({
       mode: 'Survival',
       score: this.state.survivalScore,
@@ -1026,7 +1037,7 @@ class Game {
   async shareStage() {
     const stage = STAGES[this.state.activeStage];
     const levelCount = stage.levels.length;
-    const text = `I cleared ${stage.name} in Anagram`;
+    const text = withGameShareLink(`I cleared ${stage.name} in Anagram`);
     const file = makeScoreShareImage({
       mode: 'Stage Complete',
       score: stage.name,
@@ -1114,7 +1125,7 @@ class Game {
     const result = this.state.dailyResult;
     const elapsed = result ? result.elapsed : this.state.dailyElapsed;
     const date = result ? result.date : this.state.dailyDate;
-    const text = `Daily 5 ${date}: ${formatDuration(elapsed)} in Anagram`;
+    const text = withGameShareLink(`Daily 5 ${date}: ${formatDuration(elapsed)} in Anagram`);
     const file = makeScoreShareImage({
       mode: 'Daily 5',
       score: formatDuration(elapsed),
