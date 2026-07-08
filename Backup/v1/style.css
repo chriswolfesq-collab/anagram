@@ -1,0 +1,470 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #E5E5E0;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #141414;
+}
+
+#app {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  margin: 0 auto;
+  position: relative;
+  background: #FAFAF8;
+  color: #141414;
+  overflow: hidden;
+}
+
+/* Invisible input used to summon the mobile on-screen keyboard. Kept in the
+   viewport (not display:none) so browsers will actually focus it. */
+#kb-capture {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  outline: none;
+  opacity: 0;
+  font-size: 16px;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  z-index: -1;
+}
+
+.mono {
+  font-family: 'Space Mono', monospace;
+}
+
+@keyframes wg-pop {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---------- Stage Select ---------- */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.screen-header {
+  padding: 40px 24px 20px;
+}
+
+.app-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.app-subtitle {
+  font-size: 14px;
+  color: #8A8A85;
+  margin-top: 6px;
+}
+
+.stage-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 20px 20px;
+  gap: 14px;
+}
+
+.stage-card {
+  padding: 22px;
+  background: #FFFFFF;
+  border: 2px solid #141414;
+}
+
+.stage-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.stage-card-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #8A8A85;
+}
+
+.stage-card-right {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stage-card-name {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.progress-track {
+  height: 6px;
+  background: #ECECE8;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+}
+
+/* ---------- Mode Select ---------- */
+
+.mode-card {
+  padding: 24px 22px;
+  background: #FFFFFF;
+  border: 2px solid #141414;
+}
+
+.mode-card-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.mode-card-desc {
+  font-size: 14px;
+  color: #8A8A85;
+  line-height: 1.4;
+  margin-bottom: 14px;
+}
+
+.mode-card-meta {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #141414;
+}
+
+.stage-card-progress {
+  font-size: 12px;
+  color: #A3A39C;
+  margin-top: 8px;
+}
+
+/* ---------- Level Select ---------- */
+
+.back-link {
+  font-size: 14px;
+  font-weight: 700;
+  color: #8A8A85;
+  cursor: pointer;
+  margin-bottom: 14px;
+  display: inline-block;
+}
+
+.screen-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.level-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.level-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid #ECECE8;
+}
+
+.level-badge {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.level-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.level-clue {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.level-meta {
+  font-size: 12px;
+  color: #A3A39C;
+  margin-top: 3px;
+  letter-spacing: 0.3px;
+}
+
+.level-right {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* ---------- Play Level ---------- */
+
+.play-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 0;
+}
+
+.play-header .back-link {
+  margin-bottom: 0;
+  padding: 6px 0;
+}
+
+.play-level-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #8A8A85;
+}
+
+.play-timer {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 32px;
+  text-align: right;
+}
+
+.timer-track {
+  height: 3px;
+  background: #ECECE8;
+  margin: 12px 20px 0;
+}
+
+.timer-fill {
+  height: 100%;
+  transition: width 1s linear;
+}
+
+.play-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 24px 0;
+}
+
+.clue-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #A3A39C;
+  margin-bottom: 10px;
+}
+
+.clue-text {
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.3;
+  margin-bottom: 44px;
+  max-width: 340px;
+}
+
+.slots-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  margin-bottom: 48px;
+}
+
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  border: 2px solid #141414;
+}
+
+.slot-tile {
+  background: #FFFFFF;
+  color: #141414;
+}
+
+.slot-tile.filled {
+  background: #141414;
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.slot-tile.correct {
+  cursor: default;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: #A3A39C;
+  margin-bottom: 16px;
+  letter-spacing: 0.3px;
+}
+
+.tiles-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+
+.bank-tile {
+  background: #FFFFFF;
+  color: #141414;
+  cursor: pointer;
+}
+
+.bank-tile.used {
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+/* ---------- Modals ---------- */
+
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 20, 20, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-card {
+  background: #FFFFFF;
+  padding: 36px 28px;
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+  animation: wg-pop 0.25s ease;
+}
+
+.modal-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.modal-word {
+  font-family: 'Space Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #8A8A85;
+  margin-bottom: 26px;
+}
+
+.btn-primary {
+  background: #141414;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 16px;
+  cursor: pointer;
+  border: none;
+  width: 100%;
+}
+
+/* ---------- Stage Complete / All Done ---------- */
+
+.center-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.center-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.center-eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #A3A39C;
+  margin-bottom: 10px;
+}
+
+.center-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 32px;
+}
+
+.center-title-mono {
+  font-family: 'Space Mono', monospace;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+}
+
+.center-desc {
+  font-size: 14px;
+  color: #8A8A85;
+  margin-bottom: 32px;
+  max-width: 280px;
+}
+
+.btn-primary.inline {
+  padding: 16px 28px;
+  width: auto;
+}
